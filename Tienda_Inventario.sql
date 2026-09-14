@@ -64,6 +64,17 @@ SELECT
 FROM productos
 WHERE precio >= 100.00 AND cantidad <= 10;
 
+-- 5. VISTA: Muestra los productos de 100 pesos o más cerca de agotarse (<= 10)
+CREATE VIEW vista_cantidades_inventario AS
+SELECT 
+    id, 
+    nombre, 
+    precio, 
+    cantidad AS stock_actual,
+    '¡ALERTA! Reabastecer producto (Precio >= $100 y Stock <= 10)' AS aviso
+FROM productos
+WHERE precio >= 100.00 AND cantidad >= 11;
+
 -- 6. TRIGGER: Genera un aviso automático en la tabla 'alertas_stock' si al actualizar el stock cae a 10 o menos
 DELIMITER //
 CREATE TRIGGER trigger_verificar_stock_bajo
@@ -80,14 +91,71 @@ BEGIN
 END//
 DELIMITER ;
 
+-- 7. STORED PROCEDURES (Procedimientos Almacenados)
+
+-- 7.1. Procedimiento para insertar un nuevo producto
+DELIMITER //
+CREATE PROCEDURE sp_insertar_producto(
+    IN p_nombre VARCHAR(100),
+    IN p_precio DECIMAL(10, 2),
+    IN p_descripcion TEXT,
+    IN p_cantidad INT
+)
+BEGIN
+    INSERT INTO productos (nombre, precio, descripcion, cantidad)
+    VALUES (p_nombre, p_precio, p_descripcion, p_cantidad);
+END //
+DELIMITER ;
+
+-- 7.2. Procedimiento para eliminar un producto por su ID
+DELIMITER //
+CREATE PROCEDURE sp_eliminar_producto(
+    IN p_id INT
+)
+BEGIN
+    DELETE FROM productos 
+    WHERE id = p_id;
+END //
+DELIMITER ;
+
+-- 7.3. Procedimiento para actualizar el stock/cantidad de un producto por su ID
+DELIMITER //
+CREATE PROCEDURE sp_actualizar_cantidad_producto(
+    IN p_id INT,
+    IN p_nueva_cantidad INT
+)
+BEGIN
+    UPDATE productos 
+    SET cantidad = p_nueva_cantidad 
+    WHERE id = p_id;
+END //
+DELIMITER ;
+
 -- Ver mi inventario
 SELECT * FROM vista_alertas_inventario;
 
+SELECT * FROM vista_cantidades_inventario;
+
 -- Establecemos la cantidad a n piezas
-UPDATE productos SET cantidad = 8 WHERE id = 1;
+UPDATE productos SET cantidad = 1 WHERE id = 1;
 
 -- Revisamos el registro de alertas
 SELECT * FROM alertas_stock;
 
 -- Revisamos todos los productos
 SELECT * FROM productos;
+
+-- 1. Insertar un producto nuevo (ID se asigna solo) nombre, precio, descripccion, cantidad
+CALL sp_insertar_producto('Silla Gamer Ergonómica', 3200.00, 'Silla reclinable con soporte lumbar', 15);
+
+-- 2. Actualizar la cantidad del producto con ID 1 a 5 piezas
+-- (Al ser precio >= $100 y cantidad <= 10, activará automáticamente el Trigger de alertas)
+CALL sp_actualizar_cantidad_producto(31, 5);
+
+-- 3. Eliminar el producto con ID n
+CALL sp_eliminar_producto(31);
+
+-- Verificamos los cambios
+SELECT * FROM productos;
+SELECT * FROM alertas_stock;
+

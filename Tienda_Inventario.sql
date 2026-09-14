@@ -159,3 +159,4 @@ CALL sp_eliminar_producto(31);
 SELECT * FROM productos;
 SELECT * FROM alertas_stock;
 
+-- Hola

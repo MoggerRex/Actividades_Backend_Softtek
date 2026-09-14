@@ -91,3 +91,17 @@ SELECT * FROM alertas_stock;
 
 -- Revisamos todos los productos
 SELECT * FROM productos;
+
+-- 1. Insertar un producto nuevo (ID se asigna solo) nombre, precio, descripccion, cantidad
+CALL sp_insertar_producto('Silla Gamer Ergonómica', 3200.00, 'Silla reclinable con soporte lumbar', 15);
+
+-- 2. Actualizar la cantidad del producto con ID 1 a 5 piezas
+-- (Al ser precio >= $100 y cantidad <= 10, activará automáticamente el Trigger de alertas)
+CALL sp_actualizar_cantidad_producto(31, 5);
+
+-- 3. Eliminar el producto con ID n
+CALL sp_eliminar_producto(31);
+
+-- Verificamos los cambios
+SELECT * FROM productos;
+SELECT * FROM alertas_stock;

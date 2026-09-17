@@ -1,50 +1,25 @@
--- ==========================================================
--- 1. Creación de la base de datos
--- ==========================================================
-CREATE DATABASE IF NOT EXISTS tienda_inventario;
+-- ============================================================
+-- BASE DE DATOS: TIENDA + REGISTRO DE VISITAS
+-- ============================================================
+
+-- 1. Creación de la base de datos limpia
+DROP DATABASE IF EXISTS tienda_inventario;
+CREATE DATABASE tienda_inventario;
 USE tienda_inventario;
 
--- ==========================================================
--- 2. Tabla de categorías (normalizada)
--- ==========================================================
-CREATE TABLE IF NOT EXISTS categorias (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(50) NOT NULL UNIQUE
-);
+-- ============================================================
+-- PARTE 1: INVENTARIO
+-- ============================================================
 
-INSERT INTO categorias (nombre) VALUES
-('Periférico'),
-('Almacenamiento'),
-('Audio'),
-('Accesorio'),
-('Papelería'),
-('Componentes'),
-('Redes'),
-('Hogar'),
-('Ropa'),
-('Limpieza'),
-('Oficina'),
-('Sin categoría');
-
--- ==========================================================
--- 3. Tabla de productos (ya con categoria_id desde el inicio)
--- ==========================================================
-CREATE TABLE IF NOT EXISTS productos (
+CREATE TABLE productos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
-    categoria_id INT DEFAULT NULL,
     precio DECIMAL(10, 2) NOT NULL,
     descripcion TEXT,
-    cantidad INT NOT NULL DEFAULT 0,
-    CONSTRAINT fk_producto_categoria
-        FOREIGN KEY (categoria_id) REFERENCES categorias(id)
-        ON DELETE SET NULL
+    cantidad INT NOT NULL DEFAULT 0
 );
 
--- ==========================================================
--- 4. Tabla de alertas de stock
--- ==========================================================
-CREATE TABLE IF NOT EXISTS alertas_stock (
+CREATE TABLE alertas_stock (
     id INT AUTO_INCREMENT PRIMARY KEY,
     producto_id INT,
     mensaje VARCHAR(255),
@@ -52,87 +27,48 @@ CREATE TABLE IF NOT EXISTS alertas_stock (
     FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
 );
 
--- ==========================================================
--- 5. Inserción de los 30 productos, ya con su categoria_id
---    (usamos subconsultas a categorias para no adivinar IDs a mano)
--- ==========================================================
-INSERT INTO productos (nombre, categoria_id, precio, descripcion, cantidad) VALUES
-('Teclado Mecánico RGB', (SELECT id FROM categorias WHERE nombre = 'Periférico'), 850.00, 'Teclado gamer con switches azules y retroiluminación', 12),
-('Mouse Inalámbrico Ergonómico', (SELECT id FROM categorias WHERE nombre = 'Periférico'), 350.00, 'Mouse óptico recargable de 2.4GHz', 8), -- Alerta
-('Cable USB-C 2 metros', (SELECT id FROM categorias WHERE nombre = 'Accesorio'), 85.00, 'Cable de carga rápida trenzado', 5), -- No alerta (<100)
-('Memoria USB 32GB', (SELECT id FROM categorias WHERE nombre = 'Almacenamiento'), 95.00, 'Unidad flash USB 3.0 metálica', 15),
-('Monitor 24 Pulgadas Full HD', (SELECT id FROM categorias WHERE nombre = 'Periférico'), 2400.00, 'Panel IPS 75Hz con bordes delgados', 10), -- Alerta
-('Pluma de Pintura Gouache', (SELECT id FROM categorias WHERE nombre = 'Papelería'), 45.00, 'Marcador acrílico punta fina', 30),
-('Libreta de Dibujo A4', (SELECT id FROM categorias WHERE nombre = 'Papelería'), 120.00, 'Cuaderno de papel grueso de 160g', 9), -- Alerta
-('Audífonos Bluetooth Over-Ear', (SELECT id FROM categorias WHERE nombre = 'Audio'), 450.00, 'Cancelación de ruido pasiva y micrófono', 25),
-('Adaptador HDMI a VGA', (SELECT id FROM categorias WHERE nombre = 'Accesorio'), 75.00, 'Convertidor de video compacto', 8),
-('Tapete para Mouse XL', (SELECT id FROM categorias WHERE nombre = 'Accesorio'), 180.00, 'Mousepad antideslizante 80x30cm', 14),
-('Disco Duro Externo 1TB', (SELECT id FROM categorias WHERE nombre = 'Almacenamiento'), 1100.00, 'Almacenamiento portátil USB 3.0', 7), -- Alerta
-('Hub USB 4 Puertos', (SELECT id FROM categorias WHERE nombre = 'Accesorio'), 150.00, 'Multiplicador de puertos USB 2.0', 20),
-('Limpiador de Pantallas Kit', (SELECT id FROM categorias WHERE nombre = 'Limpieza'), 60.00, 'Spray 100ml con paño de microfibra', 40),
-('Soporte para Laptop Aluminio', (SELECT id FROM categorias WHERE nombre = 'Accesorio'), 280.00, 'Base elevadora ajustable y plegable', 11),
-('Camiseta Negra Algodón', (SELECT id FROM categorias WHERE nombre = 'Ropa'), 199.00, 'Playera básica talla M', 6), -- Alerta
-('Taza Cerámica 350ml', (SELECT id FROM categorias WHERE nombre = 'Hogar'), 80.00, 'Taza blanca apta para microondas', 12),
-('Pasta Térmica para CPU', (SELECT id FROM categorias WHERE nombre = 'Componentes'), 130.00, 'Jeringa de 4g de alta conductividad', 15),
-('Cable Red Ethernet Cat6 5m', (SELECT id FROM categorias WHERE nombre = 'Redes'), 90.00, 'Cable UTP para red gigabit', 50),
-('Lámpara LED de Escritorio', (SELECT id FROM categorias WHERE nombre = 'Hogar'), 320.00, 'Lámpara táctil con 3 niveles de brillo', 8), -- Alerta
-('Mochila para Laptop 15"', (SELECT id FROM categorias WHERE nombre = 'Accesorio'), 550.00, 'Mochila con compartimento acolchado', 18),
-('Funda Impermeable Tablet', (SELECT id FROM categorias WHERE nombre = 'Accesorio'), 110.00, 'Protector contra agua y caídas', 22),
-('Organizador de Cables Velcro', (SELECT id FROM categorias WHERE nombre = 'Accesorio'), 40.00, 'Tira de 5 metros recortable', 60),
-('Protector de Pantalla Cristal', (SELECT id FROM categorias WHERE nombre = 'Accesorio'), 70.00, 'Mica de cristal templado 9H', 15),
-('Micrófono USB Condensador', (SELECT id FROM categorias WHERE nombre = 'Audio'), 890.00, 'Micrófono para streaming con tripié', 5), -- Alerta
-('Tarjeta MicroSD 128GB', (SELECT id FROM categorias WHERE nombre = 'Almacenamiento'), 260.00, 'Tarjeta de memoria Clase 10 U3', 30),
-('Batería Portátil 10000mAh', (SELECT id FROM categorias WHERE nombre = 'Accesorio'), 390.00, 'Powerbank con doble salida USB', 10), -- Alerta
-('Marcadores Permanentes (Pack 4)', (SELECT id FROM categorias WHERE nombre = 'Papelería'), 55.00, 'Colores surtidos secado rápido', 25),
-('Cinta Adhesiva de Embalaje', (SELECT id FROM categorias WHERE nombre = 'Oficina'), 35.00, 'Rollo de cinta transparente 48mm', 80),
-('Bocina Bluetooth Portátil', (SELECT id FROM categorias WHERE nombre = 'Audio'), 480.00, 'Resistente al agua IPX5', 4), -- Alerta
-('Teclado Numérico USB', (SELECT id FROM categorias WHERE nombre = 'Periférico'), 140.00, 'Teclado externo para laptop', 16);
+INSERT INTO productos (nombre, precio, descripcion, cantidad) VALUES
+('Teclado Mecánico RGB', 850.00, 'Teclado gamer con switches azules y retroiluminación', 12),
+('Mouse Inalámbrico Ergonómico', 350.00, 'Mouse óptico recargable de 2.4GHz', 8),
+('Cable USB-C 2 metros', 85.00, 'Cable de carga rápida trenzado', 5),
+('Memoria USB 32GB', 95.00, 'Unidad flash USB 3.0 metálica', 15),
+('Monitor 24 Pulgadas Full HD', 2400.00, 'Panel IPS 75Hz con bordes delgados', 10),
+('Pluma de Pintura Gouache', 45.00, 'Marcador acrílico punta fina', 30),
+('Libreta de Dibujo A4', 120.00, 'Cuaderno de papel grueso de 160g', 9),
+('Audífonos Bluetooth Over-Ear', 450.00, 'Cancelación de ruido pasiva y micrófono', 25),
+('Adaptador HDMI a VGA', 75.00, 'Convertidor de video compacto', 8),
+('Tapete para Mouse XL', 180.00, 'Mousepad antideslizante 80x30cm', 14),
+('Disco Duro Externo 1TB', 1100.00, 'Almacenamiento portátil USB 3.0', 7),
+('Hub USB 4 Puertos', 150.00, 'Multiplicador de puertos USB 2.0', 20),
+('Limpiador de Pantallas Kit', 60.00, 'Spray 100ml con paño de microfibra', 40),
+('Soporte para Laptop Aluminio', 280.00, 'Base elevadora ajustable y plegable', 11),
+('Camiseta Negra Algodón', 199.00, 'Playera básica talla M', 6),
+('Taza Cerámica 350ml', 80.00, 'Taza blanca apta para microondas', 12),
+('Pasta Térmica para CPU', 130.00, 'Jeringa de 4g de alta conductividad', 15),
+('Cable Red Ethernet Cat6 5m', 90.00, 'Cable UTP para red gigabit', 50),
+('Lámpara LED de Escritorio', 320.00, 'Lámpara táctil con 3 niveles de brillo', 8),
+('Mochila para Laptop 15"', 550.00, 'Mochila con compartimento acolchado', 18),
+('Funda Impermeable Tablet', 110.00, 'Protector contra agua y caídas', 22),
+('Organizador de Cables Velcro', 40.00, 'Tira de 5 metros recortable', 60),
+('Protector de Pantalla Cristal', 70.00, 'Mica de cristal templado 9H', 15),
+('Micrófono USB Condensador', 890.00, 'Micrófono para streaming con tripié', 5),
+('Tarjeta MicroSD 128GB', 260.00, 'Tarjeta de memoria Clase 10 U3', 30),
+('Batería Portátil 10000mAh', 390.00, 'Powerbank con doble salida USB', 10),
+('Marcadores Permanentes (Pack 4)', 55.00, 'Colores surtidos secado rápido', 25),
+('Cinta Adhesiva de Embalaje', 35.00, 'Rollo de cinta transparente 48mm', 80),
+('Bocina Bluetooth Portátil', 480.00, 'Resistente al agua IPX5', 4),
+('Teclado Numérico USB', 140.00, 'Teclado externo para laptop', 16);
 
--- ==========================================================
--- 6. VISTAS (ahora muestran también el nombre de la categoría)
--- ==========================================================
-
--- Productos caros (>= $100) con stock crítico (<= 10)
 CREATE VIEW vista_alertas_inventario AS
-SELECT
-    p.id,
-    p.nombre,
-    c.nombre AS categoria,
-    p.precio,
-    p.cantidad AS stock_actual,
+SELECT 
+    id,
+    nombre,
+    precio,
+    cantidad AS stock_actual,
     '¡ALERTA! Reabastecer producto (Precio >= $100 y Stock <= 10)' AS aviso
-FROM productos p
-LEFT JOIN categorias c ON p.categoria_id = c.id
-WHERE p.precio >= 100.00 AND p.cantidad <= 10;
+FROM productos
+WHERE precio >= 100.00 AND cantidad <= 10;
 
--- Productos caros (>= $100) con stock saludable (>= 11)
-CREATE VIEW vista_cantidades_inventario AS
-SELECT
-    p.id,
-    p.nombre,
-    c.nombre AS categoria,
-    p.precio,
-    p.cantidad AS stock_actual,
-    'Stock saludable (Precio >= $100 y Stock >= 11)' AS aviso
-FROM productos p
-LEFT JOIN categorias c ON p.categoria_id = c.id
-WHERE p.precio >= 100.00 AND p.cantidad >= 11;
-
--- Vista extra: todo el inventario agrupado por categoría
-CREATE VIEW vista_productos_por_categoria AS
-SELECT
-    c.nombre AS categoria,
-    p.id,
-    p.nombre,
-    p.precio,
-    p.cantidad
-FROM productos p
-LEFT JOIN categorias c ON p.categoria_id = c.id
-ORDER BY c.nombre, p.nombre;
-
--- ==========================================================
--- 7. TRIGGER: aviso automático de stock bajo
--- ==========================================================
 DELIMITER //
 CREATE TRIGGER trigger_verificar_stock_bajo
 AFTER UPDATE ON productos
@@ -140,112 +76,171 @@ FOR EACH ROW
 BEGIN
     IF NEW.precio >= 100.00 AND NEW.cantidad <= 10 THEN
         INSERT INTO alertas_stock (producto_id, mensaje)
-        VALUES (
-            NEW.id,
-            CONCAT('AVISO: El producto "', NEW.nombre, '" (Price: $', NEW.precio, ') tiene un stock crítico de ', NEW.cantidad, ' unidades.')
-        );
+        VALUES (NEW.id, CONCAT('AVISO: El producto "', NEW.nombre, '" (Precio: $', NEW.precio, ') tiene un stock crítico de ', NEW.cantidad, ' unidades.'));
     END IF;
 END//
 DELIMITER ;
 
--- ==========================================================
--- 8. PROCEDIMIENTOS ALMACENADOS
--- ==========================================================
+-- ============================================================
+-- PARTE 2: REGISTRO DE USUARIOS Y VISITAS
+-- ============================================================
 
--- 8.1. Insertar un nuevo producto (ahora recibe categoria_id)
-DELIMITER //
-CREATE PROCEDURE sp_insertar_producto(
-    IN p_nombre VARCHAR(100),
-    IN p_categoria_id INT,
-    IN p_precio DECIMAL(10, 2),
-    IN p_descripcion TEXT,
-    IN p_cantidad INT
-)
-BEGIN
-    INSERT INTO productos (nombre, categoria_id, precio, descripcion, cantidad)
-    VALUES (p_nombre, p_categoria_id, p_precio, p_descripcion, p_cantidad);
-END //
-DELIMITER ;
-
--- 8.2. Eliminar un producto por su ID (sin cambios)
-DELIMITER //
-CREATE PROCEDURE sp_eliminar_producto(
-    IN p_id INT
-)
-BEGIN
-    DELETE FROM productos
-    WHERE id = p_id;
-END //
-DELIMITER ;
-
--- 8.3. Actualizar el stock/cantidad de un producto por su ID (sin cambios)
-DELIMITER //
-CREATE PROCEDURE sp_actualizar_cantidad_producto(
-    IN p_id INT,
-    IN p_nueva_cantidad INT
-)
-BEGIN
-    UPDATE productos
-    SET cantidad = p_nueva_cantidad
-    WHERE id = p_id;
-END //
-DELIMITER ;
-
--- 8.4. Agregar una categoría nueva, sin duplicar si ya existe
-DELIMITER //
-CREATE PROCEDURE sp_agregar_categoria(
-    IN p_nombre VARCHAR(50)
-)
-BEGIN
-    INSERT INTO categorias (nombre)
-    SELECT p_nombre
-    WHERE NOT EXISTS (SELECT 1 FROM categorias WHERE nombre = p_nombre);
-END //
-DELIMITER ;
-
--- ==========================================================
--- 9. Pruebas / uso del sistema
--- ==========================================================
-
--- Ver categorías disponibles
-SELECT * FROM categorias;
-
--- Ver inventario completo con categoría
-SELECT * FROM vista_productos_por_categoria;
-
--- Ver alertas y stock saludable
-SELECT * FROM vista_alertas_inventario;
-SELECT * FROM vista_cantidades_inventario;
-
--- Establecemos la cantidad a 1 pieza (dispara el trigger de alerta)
-UPDATE productos SET cantidad = 1 WHERE id = 1;
-
--- Revisamos el registro de alertas
-SELECT * FROM alertas_stock;
-
--- Revisamos todos los productos
-SELECT * FROM productos;
-
--- 1. Insertar un producto nuevo con categoría (ej. 'Periférico')
-CALL sp_insertar_producto(
-    'Silla Gamer Ergonómica',
-    (SELECT id FROM categorias WHERE nombre = 'Hogar'),
-    3200.00,
-    'Silla reclinable con soporte lumbar',
-    15
+CREATE TABLE usuarios (
+    id_usuario INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    apellido VARCHAR(100),
+    correo VARCHAR(150),
+    telefono VARCHAR(20),
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. Actualizar la cantidad del producto con ID 31 a 5 piezas
--- (Al ser precio >= $100 y cantidad <= 10, activará automáticamente el Trigger de alertas)
-CALL sp_actualizar_cantidad_producto(31, 5);
+CREATE TABLE servicios (
+    id_servicio INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion VARCHAR(255),
+    activo BOOLEAN DEFAULT TRUE
+);
 
--- 3. Eliminar el producto con ID 31
-CALL sp_eliminar_producto(31);
+CREATE TABLE visitas (
+    id_visita INT AUTO_INCREMENT PRIMARY KEY,
+    id_usuario INT NOT NULL,
+    id_servicio INT NOT NULL,
+    fecha_visita DATETIME DEFAULT CURRENT_TIMESTAMP,
+    anio INT NOT NULL,
+    semana INT NOT NULL,
+    FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+    FOREIGN KEY (id_servicio) REFERENCES servicios(id_servicio) ON DELETE CASCADE,
+    
+    -- CONDICIÓN: Evita que el mismo usuario registre el mismo servicio 2 veces en la misma semana
+    UNIQUE (id_usuario, id_servicio, anio, semana)
+);
 
--- 4. Agregar una categoría nueva
-CALL sp_agregar_categoria('Laptops');
+INSERT INTO servicios (nombre, descripcion) VALUES
+('Masajes', 'Sesión de masajes terapéuticos'),
+('Rehabilitación', 'Sesión de rehabilitación física');
 
--- Verificamos los cambios finales
+UPDATE servicios
+SET nombre = CASE id_servicio
+    WHEN 1 THEN 'Masajes'
+    WHEN 2 THEN 'Rehabilitación'
+END,
+descripcion = CASE id_servicio
+    WHEN 1 THEN 'Sesión de masajes terapéuticos'
+    WHEN 2 THEN 'Sesión de rehabilitación física'
+END
+WHERE id_servicio IN (1, 2);
+
+-- ============================================================
+-- PARTE 3: DATOS DE PRUEBA (200 USUARIOS REALES Y ESTÁTICOS)
+-- ============================================================
+
+INSERT INTO usuarios (nombre, apellido, correo, telefono) VALUES
+('Luis', 'Hernández', 'luis.h@example.com', '5550000001'),
+('Ana', 'García', 'ana.g@example.com', '5550000002'),
+('Carlos', 'Martínez', 'carlos.m@example.com', '5550000003'),
+('María', 'López', 'maria.l@example.com', '5550000004'),
+('Pedro', 'Ramírez', 'pedro.r@example.com', '5550000005'),
+('Sofía', 'Torres', 'sofia.t@example.com', '5550000006'),
+('Jorge', 'Flores', 'jorge.f@example.com', '5550000007'),
+('Lucía', 'Gómez', 'lucia.g@example.com', '5550000008'),
+('Miguel', 'Díaz', 'miguel.d@example.com', '5550000009'),
+('Elena', 'Cruz', 'elena.c@example.com', '5550000010'),
+('Raúl', 'Reyes', 'raul.r@example.com', '5550000011'),
+('Carmen', 'Morales', 'carmen.m@example.com', '5550000012'),
+('Roberto', 'Ortiz', 'roberto.o@example.com', '5550000013'),
+('Laura', 'Gutiérrez', 'laura.g@example.com', '5550000014'),
+('Fernando', 'Chávez', 'fernando.c@example.com', '5550000015'),
+('Daniela', 'Ruiz', 'daniela.r@example.com', '5550000016'),
+('Alejandro', 'Álvarez', 'alejandro.a@example.com', '5550000017'),
+('Valeria', 'Mendoza', 'valeria.m@example.com', '5550000018'),
+('Diego', 'Castillo', 'diego.c@example.com', '5550000019'),
+('Gabriela', 'Aguilar', 'gabriela.a@example.com', '5550000020'),
+('Héctor', 'Romero', 'hector.r@example.com', '5550000021'),
+('Teresa', 'Herrera', 'teresa.h@example.com', '5550000022'),
+('Julio', 'Medina', 'julio.m@example.com', '5550000023'),
+('Patricia', 'Vargas', 'patricia.v@example.com', '5550000024'),
+('Arturo', 'Castro', 'arturo.c@example.com', '5550000025'),
+('Rosa', 'Guzmán', 'rosa.g@example.com', '5550000026'),
+('Ricardo', 'Fernández', 'ricardo.f@example.com', '5550000027'),
+('Verónica', 'Juárez', 'veronica.j@example.com', '5550000028'),
+('Andrés', 'Muñoz', 'andres.m@example.com', '5550000029'),
+('Natalia', 'Salazar', 'natalia.s@example.com', '5550000030'),
+('Oscar', 'Rojas', 'oscar.r@example.com', '5550000031'),
+('Gloria', 'Pérez', 'gloria.p@example.com', '5550000032'),
+('Mario', 'Soto', 'mario.s@example.com', '5550000033'),
+('Mónica', 'Contreras', 'monica.c@example.com', '5550000034'),
+('Javier', 'Silva', 'javier.s@example.com', '5550000035'),
+('Adriana', 'Cervantes', 'adriana.c@example.com', '5550000036'),
+('Hugo', 'Domínguez', 'hugo.d@example.com', '5550000037'),
+('Claudia', 'Gallo', 'claudia.g@example.com', '5550000038'),
+('Edgar', 'Velázquez', 'edgar.v@example.com', '5550000039'),
+('Leticia', 'Navarro', 'leticia.n@example.com', '5550000040'),
+('Martín', 'Escobar', 'martin.e@example.com', '5550000041'),
+('Beatriz', 'Pineda', 'beatriz.p@example.com', '5550000042'),
+('Víctor', 'Ramos', 'victor.r@example.com', '5550000043'),
+('Margarita', 'Mejía', 'margarita.m@example.com', '5550000044'),
+('Guillermo', 'Luna', 'guillermo.l@example.com', '5550000045'),
+('Silvia', 'Campos', 'silvia.c@example.com', '5550000046'),
+('Enrique', 'Pacheco', 'enrique.p@example.com', '5550000047'),
+('Josefina', 'Vega', 'josefina.v@example.com', '5550000048'),
+('Ramón', 'Valdez', 'ramon.v@example.com', '5550000049'),
+('Isabel', 'Cabrera', 'isabel.c@example.com', '5550000050');
+
+-- Generamos los siguientes 150 combinando los mismos nombres y apellidos base de los primeros 50 para completar los 200
+INSERT INTO usuarios (nombre, apellido, correo, telefono)
+SELECT 
+    u1.nombre, 
+    u2.apellido, 
+    CONCAT(LOWER(u1.nombre), '.', LOWER(u2.apellido), u1.id_usuario, '@example.com'), 
+    CONCAT('5551', LPAD(u1.id_usuario * u2.id_usuario, 5, '0'))
+FROM usuarios u1
+JOIN usuarios u2 ON u1.id_usuario != u2.id_usuario
+LIMIT 150;
+
+-- Registros de Visitas para la Semana 38, 2026 (Datos estáticos y directos)
+INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
+-- Usuarios que usaron AMBOS servicios
+(1, 1, '2026-09-14 10:00:00', 2026, 38), (1, 2, '2026-09-15 11:00:00', 2026, 38),
+(4, 1, '2026-09-16 10:00:00', 2026, 38), (4, 2, '2026-09-17 10:00:00', 2026, 38),
+(10, 1, '2026-09-14 09:00:00', 2026, 38), (10, 2, '2026-09-18 14:00:00', 2026, 38),
+(15, 1, '2026-09-15 12:00:00', 2026, 38), (15, 2, '2026-09-16 12:00:00', 2026, 38),
+(25, 1, '2026-09-14 08:30:00', 2026, 38), (25, 2, '2026-09-18 16:30:00', 2026, 38),
+(40, 1, '2026-09-15 11:15:00', 2026, 38), (40, 2, '2026-09-17 11:15:00', 2026, 38),
+(55, 1, '2026-09-14 13:00:00', 2026, 38), (55, 2, '2026-09-15 15:00:00', 2026, 38),
+(70, 1, '2026-09-16 09:45:00', 2026, 38), (70, 2, '2026-09-17 09:45:00', 2026, 38),
+(85, 1, '2026-09-14 10:30:00', 2026, 38), (85, 2, '2026-09-16 10:30:00', 2026, 38),
+(100, 1, '2026-09-15 14:20:00', 2026, 38), (100, 2, '2026-09-18 14:20:00', 2026, 38),
+
+-- Usuarios que usaron SOLO Masajes (1)
+(2, 1, '2026-09-15 09:00:00', 2026, 38),
+(5, 1, '2026-09-14 11:00:00', 2026, 38),
+(8, 1, '2026-09-16 14:00:00', 2026, 38),
+(12, 1, '2026-09-17 10:30:00', 2026, 38),
+(18, 1, '2026-09-18 15:00:00', 2026, 38),
+(22, 1, '2026-09-14 08:00:00', 2026, 38),
+(30, 1, '2026-09-15 12:45:00', 2026, 38),
+(45, 1, '2026-09-16 09:15:00', 2026, 38),
+(60, 1, '2026-09-17 16:20:00', 2026, 38),
+(90, 1, '2026-09-18 11:10:00', 2026, 38),
+
+-- Usuarios que usaron SOLO Rehabilitación (2)
+(3, 2, '2026-09-16 13:00:00', 2026, 38),
+(6, 2, '2026-09-14 15:30:00', 2026, 38),
+(9, 2, '2026-09-15 08:45:00', 2026, 38),
+(14, 2, '2026-09-17 12:00:00', 2026, 38),
+(20, 2, '2026-09-18 09:30:00', 2026, 38),
+(28, 2, '2026-09-14 14:15:00', 2026, 38),
+(35, 2, '2026-09-15 10:50:00', 2026, 38),
+(50, 2, '2026-09-16 15:40:00', 2026, 38),
+(75, 2, '2026-09-17 13:25:00', 2026, 38),
+(120, 2, '2026-09-18 08:15:00', 2026, 38);
+
+-- ============================================================
+-- PARTE 4: CONSULTAS (PRUEBA FINAL)
+-- ============================================================
+
+-- Comprobar si el trigger funciona restando piezas al ID 1
+UPDATE productos SET cantidad = 8 WHERE id = 1;
+
+-- Verificar productos
 SELECT * FROM productos;
-SELECT * FROM alertas_stock;
-SELECT * FROM categorias;

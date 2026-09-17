@@ -91,3 +91,141 @@ SELECT * FROM alertas_stock;
 
 -- Revisamos todos los productos
 SELECT * FROM productos;
+
+-- ============================================================
+-- DASHBOARD: REGISTRO DE USUARIOS Y VISITAS
+-- Integrado desde la rama Isaac sin eliminar la base existente.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS usuarios (
+    id_usuario INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    apellido VARCHAR(100),
+    correo VARCHAR(150) UNIQUE,
+    telefono VARCHAR(20),
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS servicios (
+    id_servicio INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion VARCHAR(255),
+    activo BOOLEAN DEFAULT TRUE
+);
+
+CREATE TABLE IF NOT EXISTS visitas (
+    id_visita INT AUTO_INCREMENT PRIMARY KEY,
+    id_usuario INT NOT NULL,
+    id_servicio INT NOT NULL,
+    fecha_visita DATETIME DEFAULT CURRENT_TIMESTAMP,
+    anio INT NOT NULL,
+    semana INT NOT NULL,
+    FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+    FOREIGN KEY (id_servicio) REFERENCES servicios(id_servicio) ON DELETE CASCADE,
+    UNIQUE (id_usuario, id_servicio, anio, semana)
+);
+
+INSERT INTO servicios (id_servicio, nombre, descripcion, activo) VALUES
+(1, 'Masajes', 'Sesión de masajes terapéuticos', TRUE),
+(2, 'Rehabilitación', 'Sesión de rehabilitación física', TRUE)
+ON DUPLICATE KEY UPDATE
+    nombre = VALUES(nombre),
+    descripcion = VALUES(descripcion),
+    activo = VALUES(activo);
+
+-- Datos de práctica utilizados por el Dashboard para la semana 38 de 2026.
+INSERT IGNORE INTO usuarios (nombre, apellido, correo, telefono) VALUES
+('Luis', 'Hernández', 'luis.h@example.com', '5550000001'),
+('Ana', 'García', 'ana.g@example.com', '5550000002'),
+('Carlos', 'Martínez', 'carlos.m@example.com', '5550000003'),
+('María', 'López', 'maria.l@example.com', '5550000004'),
+('Pedro', 'Ramírez', 'pedro.r@example.com', '5550000005'),
+('Sofía', 'Torres', 'sofia.t@example.com', '5550000006'),
+('Jorge', 'Flores', 'jorge.f@example.com', '5550000007'),
+('Lucía', 'Gómez', 'lucia.g@example.com', '5550000008'),
+('Miguel', 'Díaz', 'miguel.d@example.com', '5550000009'),
+('Elena', 'Cruz', 'elena.c@example.com', '5550000010'),
+('Raúl', 'Reyes', 'raul.r@example.com', '5550000011'),
+('Carmen', 'Morales', 'carmen.m@example.com', '5550000012'),
+('Roberto', 'Ortiz', 'roberto.o@example.com', '5550000013'),
+('Laura', 'Gutiérrez', 'laura.g@example.com', '5550000014'),
+('Fernando', 'Chávez', 'fernando.c@example.com', '5550000015'),
+('Daniela', 'Ruiz', 'daniela.r@example.com', '5550000016'),
+('Alejandro', 'Álvarez', 'alejandro.a@example.com', '5550000017'),
+('Valeria', 'Mendoza', 'valeria.m@example.com', '5550000018'),
+('Diego', 'Castillo', 'diego.c@example.com', '5550000019'),
+('Gabriela', 'Aguilar', 'gabriela.a@example.com', '5550000020'),
+('Héctor', 'Romero', 'hector.r@example.com', '5550000021'),
+('Teresa', 'Herrera', 'teresa.h@example.com', '5550000022'),
+('Julio', 'Medina', 'julio.m@example.com', '5550000023'),
+('Patricia', 'Vargas', 'patricia.v@example.com', '5550000024'),
+('Arturo', 'Castro', 'arturo.c@example.com', '5550000025'),
+('Rosa', 'Guzmán', 'rosa.g@example.com', '5550000026'),
+('Ricardo', 'Fernández', 'ricardo.f@example.com', '5550000027'),
+('Verónica', 'Juárez', 'veronica.j@example.com', '5550000028'),
+('Andrés', 'Muñoz', 'andres.m@example.com', '5550000029'),
+('Natalia', 'Salazar', 'natalia.s@example.com', '5550000030'),
+('Oscar', 'Rojas', 'oscar.r@example.com', '5550000031'),
+('Gloria', 'Pérez', 'gloria.p@example.com', '5550000032'),
+('Mario', 'Soto', 'mario.s@example.com', '5550000033'),
+('Mónica', 'Contreras', 'monica.c@example.com', '5550000034'),
+('Javier', 'Silva', 'javier.s@example.com', '5550000035'),
+('Adriana', 'Cervantes', 'adriana.c@example.com', '5550000036'),
+('Hugo', 'Domínguez', 'hugo.d@example.com', '5550000037'),
+('Claudia', 'Gallo', 'claudia.g@example.com', '5550000038'),
+('Edgar', 'Velázquez', 'edgar.v@example.com', '5550000039'),
+('Leticia', 'Navarro', 'leticia.n@example.com', '5550000040'),
+('Martín', 'Escobar', 'martin.e@example.com', '5550000041'),
+('Beatriz', 'Pineda', 'beatriz.p@example.com', '5550000042'),
+('Víctor', 'Ramos', 'victor.r@example.com', '5550000043'),
+('Margarita', 'Mejía', 'margarita.m@example.com', '5550000044'),
+('Guillermo', 'Luna', 'guillermo.l@example.com', '5550000045'),
+('Silvia', 'Campos', 'silvia.c@example.com', '5550000046'),
+('Enrique', 'Pacheco', 'enrique.p@example.com', '5550000047'),
+('Josefina', 'Vega', 'josefina.v@example.com', '5550000048'),
+('Ramón', 'Valdez', 'ramon.v@example.com', '5550000049'),
+('Isabel', 'Cabrera', 'isabel.c@example.com', '5550000050');
+
+INSERT IGNORE INTO usuarios (nombre, apellido, correo, telefono)
+SELECT
+    u1.nombre,
+    u2.apellido,
+    CONCAT(LOWER(u1.nombre), '.', LOWER(u2.apellido), u1.id_usuario, '@example.com'),
+    CONCAT('5551', LPAD(u1.id_usuario * u2.id_usuario, 5, '0'))
+FROM usuarios u1
+JOIN usuarios u2 ON u1.id_usuario != u2.id_usuario
+WHERE u1.id_usuario <= 50 AND u2.id_usuario <= 50
+ORDER BY u1.id_usuario, u2.id_usuario
+LIMIT 150;
+
+INSERT IGNORE INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
+(1, 1, '2026-09-14 10:00:00', 2026, 38), (1, 2, '2026-09-15 11:00:00', 2026, 38),
+(4, 1, '2026-09-16 10:00:00', 2026, 38), (4, 2, '2026-09-17 10:00:00', 2026, 38),
+(10, 1, '2026-09-14 09:00:00', 2026, 38), (10, 2, '2026-09-18 14:00:00', 2026, 38),
+(15, 1, '2026-09-15 12:00:00', 2026, 38), (15, 2, '2026-09-16 12:00:00', 2026, 38),
+(25, 1, '2026-09-14 08:30:00', 2026, 38), (25, 2, '2026-09-18 16:30:00', 2026, 38),
+(40, 1, '2026-09-15 11:15:00', 2026, 38), (40, 2, '2026-09-17 11:15:00', 2026, 38),
+(55, 1, '2026-09-14 13:00:00', 2026, 38), (55, 2, '2026-09-15 15:00:00', 2026, 38),
+(70, 1, '2026-09-16 09:45:00', 2026, 38), (70, 2, '2026-09-17 09:45:00', 2026, 38),
+(85, 1, '2026-09-14 10:30:00', 2026, 38), (85, 2, '2026-09-16 10:30:00', 2026, 38),
+(100, 1, '2026-09-15 14:20:00', 2026, 38), (100, 2, '2026-09-18 14:20:00', 2026, 38),
+(2, 1, '2026-09-15 09:00:00', 2026, 38),
+(5, 1, '2026-09-14 11:00:00', 2026, 38),
+(8, 1, '2026-09-16 14:00:00', 2026, 38),
+(12, 1, '2026-09-17 10:30:00', 2026, 38),
+(18, 1, '2026-09-18 15:00:00', 2026, 38),
+(22, 1, '2026-09-14 08:00:00', 2026, 38),
+(30, 1, '2026-09-15 12:45:00', 2026, 38),
+(45, 1, '2026-09-16 09:15:00', 2026, 38),
+(60, 1, '2026-09-17 16:20:00', 2026, 38),
+(90, 1, '2026-09-18 11:10:00', 2026, 38),
+(3, 2, '2026-09-16 13:00:00', 2026, 38),
+(6, 2, '2026-09-14 15:30:00', 2026, 38),
+(9, 2, '2026-09-15 08:45:00', 2026, 38),
+(14, 2, '2026-09-17 12:00:00', 2026, 38),
+(20, 2, '2026-09-18 09:30:00', 2026, 38),
+(28, 2, '2026-09-14 14:15:00', 2026, 38),
+(35, 2, '2026-09-15 10:50:00', 2026, 38),
+(50, 2, '2026-09-16 15:40:00', 2026, 38),
+(75, 2, '2026-09-17 13:25:00', 2026, 38),
+(120, 2, '2026-09-18 08:15:00', 2026, 38);

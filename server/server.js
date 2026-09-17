@@ -61,6 +61,198 @@ app.get('/api/productos-alerta', (req, res) => {
   });
 });
 
+app.get('/api/servicios-resumen', (req, res) => {
+  const anio = Number(req.query.anio);
+  const semana = Number(req.query.semana);
+
+  if (!Number.isInteger(anio) || anio < 2000 || !Number.isInteger(semana) || semana < 1 || semana > 53) {
+    return res.status(400).json({ error: 'El año y la semana deben tener valores válidos' });
+  }
+
+  const resumenSql = `
+    SELECT
+      CASE
+        WHEN servicios_utilizados >= 2 THEN 'dos'
+        WHEN servicios_utilizados = 1 THEN 'uno'
+        ELSE 'ninguno'
+      END AS categoria,
+      COUNT(*) AS personas
+    FROM (
+      SELECT u.id_usuario, COUNT(DISTINCT v.id_servicio) AS servicios_utilizados
+      FROM usuarios u
+      LEFT JOIN visitas v
+        ON u.id_usuario = v.id_usuario
+        AND v.anio = ?
+        AND v.semana = ?
+      GROUP BY u.id_usuario
+    ) AS usuarios_resumen
+    GROUP BY categoria
+  `;
+
+  const serviciosSql = `
+    SELECT
+      s.id_servicio,
+      CASE s.id_servicio
+        WHEN 1 THEN 'Masajes'
+        WHEN 2 THEN 'Rehabilitación'
+        ELSE s.nombre
+      END AS nombre,
+      COUNT(v.id_visita) AS visitas,
+      COUNT(DISTINCT v.id_usuario) AS personas
+    FROM servicios s
+    LEFT JOIN visitas v
+      ON s.id_servicio = v.id_servicio
+      AND v.anio = ?
+      AND v.semana = ?
+    WHERE s.activo = TRUE
+    GROUP BY s.id_servicio, s.nombre
+    ORDER BY s.id_servicio
+  `;
+
+  const personasSql = `
+    SELECT
+      u.id_usuario,
+      CONCAT(u.nombre, ' ', COALESCE(u.apellido, '')) AS persona,
+      u.correo,
+      u.telefono,
+      COALESCE(
+      GROUP_CONCAT(
+        DISTINCT CASE s.id_servicio
+          WHEN 1 THEN 'Masajes'
+          WHEN 2 THEN 'Rehabilitación'
+          ELSE s.nombre
+        END
+        ORDER BY s.id_servicio SEPARATOR ', '
+      ),
+      'Ningún servicio'
+      ) AS servicios,
+      COUNT(DISTINCT v.id_servicio) AS servicios_utilizados
+    FROM usuarios u
+    LEFT JOIN visitas v
+      ON u.id_usuario = v.id_usuario
+      AND v.anio = ?
+      AND v.semana = ?
+    LEFT JOIN servicios s
+      ON s.id_servicio = v.id_servicio
+    GROUP BY u.id_usuario, u.nombre, u.apellido, u.correo, u.telefono
+    ORDER BY u.id_usuario
+  `;
+
+  db.query(resumenSql, [anio, semana], (summaryError, summaryRows) => {
+    if (summaryError) {
+      console.error('Error consultando resumen de servicios:', summaryError);
+      return res.status(500).json({ error: 'No se pudo consultar el resumen de servicios' });
+    }
+
+    db.query(serviciosSql, [anio, semana], (servicesError, serviceRows) => {
+      if (servicesError) {
+        console.error('Error consultando visitas por servicio:', servicesError);
+        return res.status(500).json({ error: 'No se pudo consultar las visitas por servicio' });
+      }
+
+      db.query(personasSql, [anio, semana], (peopleError, peopleRows) => {
+        if (peopleError) {
+          console.error('Error consultando personas y servicios:', peopleError);
+          return res.status(500).json({ error: 'No se pudieron consultar las personas y sus servicios' });
+        }
+
+        res.json({
+          anio,
+          semana,
+          categorias: summaryRows,
+          servicios: serviceRows,
+          personas: peopleRows,
+        });
+      });
+    });
+  });
+});
+
+app.post('/api/usuarios-servicios', (req, res) => {
+  const nombre = String(req.body.nombre || '').trim();
+  const apellido = String(req.body.apellido || '').trim();
+  const correo = String(req.body.correo || '').trim();
+  const telefono = String(req.body.telefono || '').trim();
+  const anio = Number(req.body.anio);
+  const semana = Number(req.body.semana);
+  const servicios = Array.isArray(req.body.servicios)
+    ? [...new Set(req.body.servicios.map(Number))]
+    : [];
+
+  if (
+    !nombre ||
+    nombre.length > 100 ||
+    apellido.length > 100 ||
+    correo.length > 150 ||
+    telefono.length > 20 ||
+    !Number.isInteger(anio) ||
+    anio < 2000 ||
+    !Number.isInteger(semana) ||
+    semana < 1 ||
+    semana > 53 ||
+    servicios.some((id) => !Number.isInteger(id) || id < 1 || id > 2)
+  ) {
+    return res.status(400).json({ error: 'Los datos de la persona, año, semana y servicios no son válidos' });
+  }
+
+  db.beginTransaction((transactionError) => {
+    if (transactionError) {
+      console.error('Error iniciando registro de usuario:', transactionError);
+      return res.status(500).json({ error: 'No se pudo iniciar el registro' });
+    }
+
+    db.query(
+      'INSERT INTO usuarios (nombre, apellido, correo, telefono) VALUES (?, ?, ?, ?)',
+      [nombre, apellido || null, correo || null, telefono || null],
+      (userError, userResult) => {
+        if (userError) {
+          return db.rollback(() => {
+            console.error('Error insertando usuario:', userError);
+            res.status(500).json({ error: 'No se pudo agregar la persona' });
+          });
+        }
+
+        if (servicios.length === 0) {
+          return db.commit((commitError) => {
+            if (commitError) {
+              return db.rollback(() => res.status(500).json({ error: 'No se pudo guardar la persona' }));
+            }
+            res.status(201).json({ message: 'Persona agregada correctamente', id_usuario: userResult.insertId });
+          });
+        }
+
+        const visitas = servicios.map((idServicio) => [
+          userResult.insertId,
+          idServicio,
+          `${anio}-01-01 00:00:00`,
+          anio,
+          semana,
+        ]);
+
+        db.query(
+          'INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES ?',
+          [visitas],
+          (visitError) => {
+            if (visitError) {
+              return db.rollback(() => {
+                console.error('Error insertando servicios de la persona:', visitError);
+                res.status(500).json({ error: 'No se pudieron guardar los servicios de la persona' });
+              });
+            }
+
+            db.commit((commitError) => {
+              if (commitError) {
+                return db.rollback(() => res.status(500).json({ error: 'No se pudo guardar la persona' }));
+              }
+              res.status(201).json({ message: 'Persona y servicios agregados correctamente', id_usuario: userResult.insertId });
+            });
+          },
+        );
+      },
+    );
+  });
+});
+
 app.post('/api/productos', (req, res) => {
   const nombre = String(req.body.nombre || '').trim();
   const descripcion = String(req.body.descripcion || '').trim();

@@ -91,6 +91,8 @@ CREATE TABLE usuarios (
     apellido VARCHAR(100),
     correo VARCHAR(150),
     telefono VARCHAR(20),
+    area VARCHAR(50),
+    rol VARCHAR(100),
     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -196,6 +198,27 @@ SELECT
 FROM usuarios u1
 JOIN usuarios u2 ON u1.id_usuario != u2.id_usuario
 LIMIT 150;
+
+-- Asigna un área/rol de trabajo aleatoria a los 200 trabajadores
+UPDATE usuarios
+SET area = ELT(FLOOR(1 + RAND() * 6), 'RH', 'IT', 'Marketing', 'Ventas', 'Finanzas', 'Operaciones');
+
+-- Asigna un puesto coherente con el área de cada trabajador
+UPDATE usuarios
+SET rol = CASE area
+  WHEN 'RH' THEN ELT(FLOOR(1 + RAND() * 4),
+    'Reclutador', 'Generalista de RH', 'Coordinador de Nómina', 'Especialista en Capacitación')
+  WHEN 'IT' THEN ELT(FLOOR(1 + RAND() * 4),
+    'Desarrollador', 'Soporte Técnico', 'Administrador de Redes', 'Analista de Sistemas')
+  WHEN 'Marketing' THEN ELT(FLOOR(1 + RAND() * 4),
+    'Community Manager', 'Diseñador Gráfico', 'Analista de Marketing', 'Ejecutivo de Marca')
+  WHEN 'Ventas' THEN ELT(FLOOR(1 + RAND() * 4),
+    'Ejecutivo de Ventas', 'Representante Comercial', 'Coordinador de Cuentas', 'Gerente de Ventas')
+  WHEN 'Finanzas' THEN ELT(FLOOR(1 + RAND() * 4),
+    'Contador', 'Analista Financiero', 'Auxiliar Contable', 'Tesorero')
+  WHEN 'Operaciones' THEN ELT(FLOOR(1 + RAND() * 4),
+    'Supervisor de Operaciones', 'Analista de Procesos', 'Coordinador Logístico', 'Jefe de Planta')
+END;
 
 -- Registros de Visitas para la Semana 38, 2026 (Datos estáticos y directos)
 INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES

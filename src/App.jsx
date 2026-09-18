@@ -21,7 +21,25 @@ const emptyServicePerson = {
   apellido: '',
   correo: '',
   telefono: '',
+  area: '',
   servicios: [],
+}
+
+const emptyRanking = {
+  porPersona: [],
+  porSemana: [],
+  porArea: [],
+}
+
+const AREA_OPTIONS = ['RH', 'IT', 'Marketing', 'Ventas', 'Finanzas', 'Operaciones']
+
+const groupByServicio = (rows) => {
+  const grouped = new Map()
+  rows.forEach((row) => {
+    if (!grouped.has(row.servicio)) grouped.set(row.servicio, [])
+    grouped.get(row.servicio).push(row)
+  })
+  return Array.from(grouped.entries())
 }
 
 const formatPrice = (price) =>
@@ -47,6 +65,7 @@ function App() {
   const [productos, setProductos] = useState([])
   const [alertas, setAlertas] = useState([])
   const [serviceSummary, setServiceSummary] = useState(emptyServiceSummary)
+  const [ranking, setRanking] = useState(emptyRanking)
   const [serviceYear, setServiceYear] = useState('2026')
   const [serviceWeek, setServiceWeek] = useState('38')
   const [loading, setLoading] = useState(true)
@@ -86,6 +105,15 @@ function App() {
     }
   }, [serviceWeek, serviceYear])
 
+  const cargarRanking = useCallback(async () => {
+    try {
+      const data = await request(`${API_URL}/servicios-ranking`)
+      setRanking(data)
+    } catch (requestError) {
+      setError(requestError.message)
+    }
+  }, [])
+
   const openAddPersonModal = () => {
     setServiceForm(emptyServicePerson)
     setModal('add-person')
@@ -101,6 +129,10 @@ function App() {
   useEffect(() => {
     cargarServicios()
   }, [cargarServicios])
+
+  useEffect(() => {
+    cargarRanking()
+  }, [cargarRanking])
 
   const filteredProducts = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('es-MX')
@@ -172,7 +204,7 @@ function App() {
       })
       setModal(null)
       setMessage('Persona registrada correctamente.')
-      await cargarServicios()
+      await Promise.all([cargarServicios(), cargarRanking()])
     } catch (requestError) {
       setError(requestError.message)
     } finally {
@@ -257,6 +289,10 @@ function App() {
     people: categoryValues.ninguno,
     color: 'coral',
   })
+
+  const rankingPorPersona = useMemo(() => groupByServicio(ranking.porPersona), [ranking.porPersona])
+  const rankingPorSemana = useMemo(() => groupByServicio(ranking.porSemana), [ranking.porSemana])
+  const rankingPorArea = useMemo(() => groupByServicio(ranking.porArea), [ranking.porArea])
 
   return (
     <main className="app-shell">
@@ -420,7 +456,7 @@ function App() {
                 ))}
               </div>
             </section>
-            <aside className="insight-panel"><span className="insight-icon">✦</span><p className="eyebrow">Lectura rápida</p><h3>{categoryValues.dos} {categoryValues.dos === 1 ? 'persona usa' : 'personas usan'} ambos servicios</h3><p>Los porcentajes se calculan sobre todas las personas registradas, incluyendo quienes no tuvieron visitas en la semana seleccionada.</p></aside>
+            <aside className="insight-panel"><span className="insight-icon"></span><p className="eyebrow">Lectura rápida</p><h3>{categoryValues.dos} {categoryValues.dos === 1 ? 'persona usa' : 'personas usan'} ambos servicios</h3><p>Los porcentajes se calculan sobre todas las personas registradas, incluyendo quienes no tuvieron visitas en la semana seleccionada.</p></aside>
           </div>
 
           <section className="table-section people-section">
@@ -456,6 +492,83 @@ function App() {
               </table>
             </div>
           </section>
+
+          <section className="table-section rankings-section">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Rankings</p>
+                <h3>¿Quién y cuándo se usa más cada servicio?</h3>
+              </div>
+            </div>
+
+            <div className="services-detail-grid">
+              <section className="detail-panel">
+                <div className="panel-heading">
+                  <div>
+                    <p className="eyebrow">Top visitantes</p>
+                    <h3>Personas que más visitan</h3>
+                  </div>
+                </div>
+                {rankingPorPersona.length === 0 ? (
+                  <p className="empty-service">Aún no hay visitas registradas.</p>
+                ) : rankingPorPersona.map(([servicio, rows]) => (
+                  <div className="service-list" key={`persona-${servicio}`}>
+                    <p className="ranking-servicio-title"><b>{servicio}</b></p>
+                    {rows.map((row, index) => (
+                      <div className="service-row" key={`${servicio}-${row.id_usuario}`}>
+                        <span>{index === 0 ? '🏆 ' : `${index + 1}. `}{row.persona}{row.area ? ` (${row.area})` : ''}</span>
+                        <b>{row.visitas} visitas</b>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </section>
+
+              <section className="detail-panel">
+                <div className="panel-heading">
+                  <div>
+                    <p className="eyebrow">Top semanas</p>
+                    <h3>Semanas con más visitas</h3>
+                  </div>
+                </div>
+                {rankingPorSemana.length === 0 ? (
+                  <p className="empty-service">Aún no hay visitas registradas.</p>
+                ) : rankingPorSemana.map(([servicio, rows]) => (
+                  <div className="service-list" key={`semana-${servicio}`}>
+                    <p className="ranking-servicio-title"><b>{servicio}</b></p>
+                    {rows.map((row, index) => (
+                      <div className="service-row" key={`${servicio}-${row.anio}-${row.semana}`}>
+                        <span>{index === 0 ? '🏆 ' : `${index + 1}. `}Semana {row.semana}, {row.anio}</span>
+                        <b>{row.visitas} visitas</b>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </section>
+
+              <section className="detail-panel">
+                <div className="panel-heading">
+                  <div>
+                    <p className="eyebrow">Top áreas</p>
+                    <h3>Área que más visita cada servicio</h3>
+                  </div>
+                </div>
+                {rankingPorArea.length === 0 ? (
+                  <p className="empty-service">Aún no hay áreas registradas.</p>
+                ) : rankingPorArea.map(([servicio, rows]) => (
+                  <div className="service-list" key={`area-${servicio}`}>
+                    <p className="ranking-servicio-title"><b>{servicio}</b></p>
+                    {rows.map((row, index) => (
+                      <div className="service-row" key={`${servicio}-${row.area}`}>
+                        <span>{index === 0 ? '🏆 ' : `${index + 1}. `}{row.area}</span>
+                        <b>{row.visitas} visitas</b>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </section>
+            </div>
+          </section>
         </section>
       )}
 
@@ -474,6 +587,14 @@ function App() {
                 <label>Apellido<input name="apellido" value={serviceForm.apellido} onChange={handleServiceChange} maxLength="100" /></label>
                 <label>Correo<input name="correo" type="email" value={serviceForm.correo} onChange={handleServiceChange} maxLength="150" /></label>
                 <label>Teléfono<input name="telefono" value={serviceForm.telefono} onChange={handleServiceChange} maxLength="20" /></label>
+                <label>Área
+                  <select name="area" value={serviceForm.area} onChange={handleServiceChange} required>
+                    <option value="" disabled>Selecciona un área</option>
+                    {AREA_OPTIONS.map((area) => (
+                      <option key={area} value={area}>{area}</option>
+                    ))}
+                  </select>
+                </label>
                 <fieldset className="service-checkboxes">
                   <legend>Servicios utilizados</legend>
                   <label><input type="checkbox" checked={serviceForm.servicios.includes(1)} onChange={() => toggleService(1)} /> Masajes</label>

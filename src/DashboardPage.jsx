@@ -13,7 +13,25 @@ const emptyPerson = {
   apellido: '',
   correo: '',
   telefono: '',
+  area: '',
   servicios: [],
+}
+
+const emptyRanking = {
+  porPersona: [],
+  porSemana: [],
+  porArea: [],
+}
+
+const AREA_OPTIONS = ['RH', 'IT', 'Marketing', 'Ventas', 'Finanzas', 'Operaciones']
+
+const groupByServicio = (rows) => {
+  const grouped = new Map()
+  rows.forEach((row) => {
+    if (!grouped.has(row.servicio)) grouped.set(row.servicio, [])
+    grouped.get(row.servicio).push(row)
+  })
+  return Array.from(grouped.entries())
 }
 
 const categoryMetadata = [
@@ -35,6 +53,7 @@ async function request(url, options) {
 
 function DashboardPage() {
   const [summary, setSummary] = useState(emptySummary)
+  const [ranking, setRanking] = useState(emptyRanking)
   const [year, setYear] = useState('2026')
   const [week, setWeek] = useState('38')
   const [loading, setLoading] = useState(true)
@@ -58,10 +77,24 @@ function DashboardPage() {
     }
   }, [week, year])
 
+  const loadRanking = useCallback(async () => {
+    try {
+      const data = await request(`${API_URL}/servicios-ranking`)
+      setRanking(data)
+    } catch (requestError) {
+      setError(requestError.message)
+    }
+  }, [])
+
   useEffect(() => {
     // oxlint-disable-next-line react/set-state-in-effect -- El dashboard se sincroniza con el periodo seleccionado.
     loadServices()
   }, [loadServices])
+
+  useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- El ranking se carga al abrir el dashboard.
+    loadRanking()
+  }, [loadRanking])
 
   const categoryValues = useMemo(() => {
     const values = { uno: 0, dos: 0, ninguno: 0 }
@@ -74,6 +107,10 @@ function DashboardPage() {
   const totalPeople = Object.values(categoryValues).reduce((total, value) => total + value, 0)
   const activePeople = categoryValues.uno + categoryValues.dos
   const maxVisits = Math.max(1, ...summary.servicios.map((service) => Number(service.visitas)))
+
+  const rankingPorPersona = useMemo(() => groupByServicio(ranking.porPersona), [ranking.porPersona])
+  const rankingPorSemana = useMemo(() => groupByServicio(ranking.porSemana), [ranking.porSemana])
+  const rankingPorArea = useMemo(() => groupByServicio(ranking.porArea), [ranking.porArea])
 
   const donutBackground = useMemo(() => {
     if (!totalPeople) return '#dfeee4'
@@ -140,7 +177,7 @@ function DashboardPage() {
       })
       setShowModal(false)
       setMessage('Persona registrada correctamente.')
-      await loadServices()
+      await Promise.all([loadServices(), loadRanking()])
     } catch (requestError) {
       setError(requestError.message)
     } finally {
@@ -345,6 +382,75 @@ function DashboardPage() {
         </div>
       </section>
 
+      <section className="mt-6 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm shadow-emerald-900/5">
+        <div className="border-b border-emerald-100 px-5 py-4">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700/60">Rankings</p>
+          <h2 className="mt-1 text-lg font-semibold text-emerald-950">¿Quién y cuándo se usa más cada servicio?</h2>
+        </div>
+
+        <div className="p-5">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <article className="rounded-xl border border-emerald-100 bg-[#f9fdf9] p-4">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700/60">Top visitantes</p>
+              <h3 className="mt-1 mb-4 text-base font-semibold text-emerald-950">Personas que más visitan</h3>
+              {rankingPorPersona.length === 0 ? (
+                <p className="py-6 text-center text-sm text-slate-400">Aún no hay visitas registradas.</p>
+              ) : rankingPorPersona.map(([servicio, rows]) => (
+                <div className="mb-4 last:mb-0" key={`persona-${servicio}`}>
+                  <p className="mb-2 text-sm font-bold text-slate-700">{servicio}</p>
+                  <div className="space-y-1.5">
+                    {rows.map((row, index) => (
+                      <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm" key={`${servicio}-${row.id_usuario}`}>
+                        <span className="min-w-0 truncate text-slate-600">{index === 0 ? '🏆 ' : `${index + 1}. `}{row.persona}{row.area ? ` (${row.area})` : ''}</span>
+                        <b className="shrink-0 text-emerald-950">{row.visitas} visitas</b>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </article>
+            <article className="rounded-xl border border-emerald-100 bg-[#f9fdf9] p-4">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700/60">Top semanas</p>
+              <h3 className="mt-1 mb-4 text-base font-semibold text-emerald-950">Semanas con más visitas</h3>
+              {rankingPorSemana.length === 0 ? (
+                <p className="py-6 text-center text-sm text-slate-400">Aún no hay visitas registradas.</p>
+              ) : rankingPorSemana.map(([servicio, rows]) => (
+                <div className="mb-4 last:mb-0" key={`semana-${servicio}`}>
+                  <p className="mb-2 text-sm font-bold text-slate-700">{servicio}</p>
+                  <div className="space-y-1.5">
+                    {rows.map((row, index) => (
+                      <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm" key={`${servicio}-${row.anio}-${row.semana}`}>
+                        <span className="min-w-0 truncate text-slate-600">{index === 0 ? '🏆 ' : `${index + 1}. `}Semana {row.semana}, {row.anio}</span>
+                        <b className="shrink-0 text-emerald-950">{row.visitas} visitas</b>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </article>
+            <article className="rounded-xl border border-emerald-100 bg-[#f9fdf9] p-4">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700/60">Top áreas</p>
+              <h3 className="mt-1 mb-4 text-base font-semibold text-emerald-950">Área que más visita cada servicio</h3>
+              {rankingPorArea.length === 0 ? (
+                <p className="py-6 text-center text-sm text-slate-400">Aún no hay áreas registradas.</p>
+              ) : rankingPorArea.map(([servicio, rows]) => (
+                <div className="mb-4 last:mb-0" key={`area-${servicio}`}>
+                  <p className="mb-2 text-sm font-bold text-slate-700">{servicio}</p>
+                  <div className="space-y-1.5">
+                    {rows.map((row, index) => (
+                      <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm" key={`${servicio}-${row.area}`}>
+                        <span className="min-w-0 truncate text-slate-600">{index === 0 ? '🏆 ' : `${index + 1}. `}{row.area}</span>
+                        <b className="shrink-0 text-emerald-950">{row.visitas} visitas</b>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </article>
+          </div>
+        </div>
+      </section>
+
       {showModal && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 backdrop-blur-[2px]" role="presentation" onMouseDown={closeModal}>
           <div
@@ -383,6 +489,15 @@ function DashboardPage() {
                 <label className="text-sm font-medium text-slate-700">
                   Teléfono
                   <input className="mt-1.5 h-10 w-full rounded-lg border border-slate-300 px-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" name="telefono" value={form.telefono} onChange={handleChange} maxLength="20" />
+                </label>
+                <label className="text-sm font-medium text-slate-700 sm:col-span-2">
+                  Área
+                  <select className="mt-1.5 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" name="area" value={form.area} onChange={handleChange} required>
+                    <option value="" disabled>Selecciona un área</option>
+                    {AREA_OPTIONS.map((area) => (
+                      <option key={area} value={area}>{area}</option>
+                    ))}
+                  </select>
                 </label>
               </div>
 

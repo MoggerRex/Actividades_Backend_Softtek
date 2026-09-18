@@ -199,6 +199,8 @@ FROM usuarios u1
 JOIN usuarios u2 ON u1.id_usuario != u2.id_usuario
 LIMIT 150;
 
+-- MS--
+SET SQL_SAFE_UPDATES = 0;
 -- Asigna un área/rol de trabajo aleatoria a los 200 trabajadores
 UPDATE usuarios
 SET area = ELT(FLOOR(1 + RAND() * 6), 'RH', 'IT', 'Marketing', 'Ventas', 'Finanzas', 'Operaciones');
@@ -219,6 +221,8 @@ SET rol = CASE area
   WHEN 'Operaciones' THEN ELT(FLOOR(1 + RAND() * 4),
     'Supervisor de Operaciones', 'Analista de Procesos', 'Coordinador Logístico', 'Jefe de Planta')
 END;
+
+SET SQL_SAFE_UPDATES = 1;
 
 -- Registros de Visitas para la Semana 38, 2026 (Datos estáticos y directos)
 INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES

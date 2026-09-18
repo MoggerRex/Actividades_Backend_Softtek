@@ -60,34 +60,6 @@ function App() {
     setActivePage(page)
   }
 
-  const selectSection = (nextSection) => {
-    setSection(nextSection)
-    setMenuOpen(false)
-    setError('')
-  }
-
-  const categoryValues = { uno: 0, dos: 0, ninguno: 0 }
-  serviceSummary.categorias.forEach((item) => {
-    categoryValues[item.categoria] = Number(item.personas)
-  })
-  const totalPeople = Object.values(categoryValues).reduce((total, value) => total + value, 0)
-  const serviceCards = serviceSummary.servicios.map((service, index) => ({
-    key: `servicio-${service.id_servicio}`,
-    label: service.nombre,
-    people: Number(service.personas),
-    color: index % 2 === 0 ? 'gold' : 'teal',
-  }))
-  serviceCards.push({
-    key: 'ninguno',
-    label: 'Ningún servicio',
-    people: categoryValues.ninguno,
-    color: 'coral',
-  })
-
-  const rankingPorPersona = useMemo(() => groupByServicio(ranking.porPersona), [ranking.porPersona])
-  const rankingPorSemana = useMemo(() => groupByServicio(ranking.porSemana), [ranking.porSemana])
-  const rankingPorArea = useMemo(() => groupByServicio(ranking.porArea), [ranking.porArea])
-
   return (
     <div className={`min-h-screen text-slate-800 ${isDashboard ? 'bg-[#eef7f0]' : 'bg-[#f4f7fb]'}`}>
       <aside className={`fixed inset-y-0 left-0 z-40 flex w-[76px] flex-col border-r px-3 py-5 shadow-sm md:w-60 md:px-4 ${

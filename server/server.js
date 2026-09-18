@@ -113,19 +113,19 @@ app.get('/api/servicios-resumen', (req, res) => {
   const personasSql = `
     SELECT
       u.id_usuario,
-      CONCAT(u.nombre, ' ', COALESCE(u.apellido, '')) AS persona,
+      TRIM(CONCAT(u.nombre, ' ', COALESCE(u.apellido, ''))) AS persona,
       u.correo,
       u.telefono,
       COALESCE(
-      GROUP_CONCAT(
-        DISTINCT CASE s.id_servicio
-          WHEN 1 THEN 'Masajes'
-          WHEN 2 THEN 'Rehabilitación'
-          ELSE s.nombre
-        END
-        ORDER BY s.id_servicio SEPARATOR ', '
-      ),
-      'Ningún servicio'
+        GROUP_CONCAT(
+          DISTINCT CASE s.id_servicio
+            WHEN 1 THEN 'Masajes'
+            WHEN 2 THEN 'Rehabilitación'
+            ELSE s.nombre
+          END
+          ORDER BY s.id_servicio SEPARATOR ', '
+        ),
+        'Ningún servicio'
       ) AS servicios,
       COUNT(DISTINCT v.id_servicio) AS servicios_utilizados
     FROM usuarios u
@@ -169,97 +169,11 @@ app.get('/api/servicios-resumen', (req, res) => {
   });
 });
 
-app.get('/api/servicios-ranking', (req, res) => {
-  const nombreServicioCase = `
-    CASE s.id_servicio
-      WHEN 1 THEN 'Masajes'
-      WHEN 2 THEN 'Rehabilitación'
-      ELSE s.nombre
-    END
-  `;
-
-  const porPersonaSql = `
-    SELECT id_servicio, servicio, id_usuario, persona, area, visitas
-    FROM (
-      SELECT
-        s.id_servicio,
-        ${nombreServicioCase} AS servicio,
-        u.id_usuario,
-        CONCAT(u.nombre, ' ', COALESCE(u.apellido, '')) AS persona,
-        u.area,
-        COUNT(*) AS visitas,
-        ROW_NUMBER() OVER (PARTITION BY s.id_servicio ORDER BY COUNT(*) DESC) AS posicion
-      FROM visitas v
-      JOIN usuarios u ON u.id_usuario = v.id_usuario
-      JOIN servicios s ON s.id_servicio = v.id_servicio
-      GROUP BY s.id_servicio, s.nombre, u.id_usuario, u.area
-    ) ranked
-    WHERE posicion <= 5
-    ORDER BY id_servicio, posicion
-  `;
-
-  const porSemanaSql = `
-    SELECT id_servicio, servicio, anio, semana, visitas
-    FROM (
-      SELECT
-        s.id_servicio,
-        ${nombreServicioCase} AS servicio,
-        v.anio,
-        v.semana,
-        COUNT(*) AS visitas,
-        ROW_NUMBER() OVER (PARTITION BY s.id_servicio ORDER BY COUNT(*) DESC) AS posicion
-      FROM visitas v
-      JOIN servicios s ON s.id_servicio = v.id_servicio
-      GROUP BY s.id_servicio, s.nombre, v.anio, v.semana
-    ) ranked
-    WHERE posicion <= 5
-    ORDER BY id_servicio, posicion
-  `;
-
-  const porAreaSql = `
-    SELECT
-      s.id_servicio,
-      ${nombreServicioCase} AS servicio,
-      u.area,
-      COUNT(*) AS visitas
-    FROM visitas v
-    JOIN usuarios u ON u.id_usuario = v.id_usuario
-    JOIN servicios s ON s.id_servicio = v.id_servicio
-    WHERE u.area IS NOT NULL
-    GROUP BY s.id_servicio, s.nombre, u.area
-    ORDER BY s.id_servicio, visitas DESC
-  `;
-
-  db.query(porPersonaSql, (personaError, porPersona) => {
-    if (personaError) {
-      console.error('Error consultando ranking por persona:', personaError);
-      return res.status(500).json({ error: 'No se pudo consultar el ranking de visitantes' });
-    }
-
-    db.query(porSemanaSql, (semanaError, porSemana) => {
-      if (semanaError) {
-        console.error('Error consultando ranking por semana:', semanaError);
-        return res.status(500).json({ error: 'No se pudo consultar el ranking de semanas' });
-      }
-
-      db.query(porAreaSql, (areaError, porArea) => {
-        if (areaError) {
-          console.error('Error consultando ranking por área:', areaError);
-          return res.status(500).json({ error: 'No se pudo consultar el ranking de áreas' });
-        }
-
-        res.json({ porPersona, porSemana, porArea });
-      });
-    });
-  });
-});
-
 app.post('/api/usuarios-servicios', (req, res) => {
   const nombre = String(req.body.nombre || '').trim();
   const apellido = String(req.body.apellido || '').trim();
   const correo = String(req.body.correo || '').trim();
   const telefono = String(req.body.telefono || '').trim();
-  const area = String(req.body.area || '').trim();
   const anio = Number(req.body.anio);
   const semana = Number(req.body.semana);
   const servicios = Array.isArray(req.body.servicios)
@@ -272,7 +186,6 @@ app.post('/api/usuarios-servicios', (req, res) => {
     apellido.length > 100 ||
     correo.length > 150 ||
     telefono.length > 20 ||
-    !AREA_OPTIONS.includes(area) ||
     !Number.isInteger(anio) ||
     anio < 2000 ||
     !Number.isInteger(semana) ||
@@ -290,8 +203,8 @@ app.post('/api/usuarios-servicios', (req, res) => {
     }
 
     db.query(
-      'INSERT INTO usuarios (nombre, apellido, correo, telefono, area) VALUES (?, ?, ?, ?, ?)',
-      [nombre, apellido || null, correo || null, telefono || null, area],
+      'INSERT INTO usuarios (nombre, apellido, correo, telefono) VALUES (?, ?, ?, ?)',
+      [nombre, apellido || null, correo || null, telefono || null],
       (userError, userResult) => {
         if (userError) {
           return db.rollback(() => {

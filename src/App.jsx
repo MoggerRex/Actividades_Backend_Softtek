@@ -1,269 +1,63 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import './App.css'
+import { useEffect, useState } from 'react'
+import StorePage from './StorePage.jsx'
+import DashboardPage from './DashboardPage.jsx'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+const navigation = [
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect width="7" height="9" x="3" y="3" rx="1" />
+        <rect width="7" height="5" x="14" y="3" rx="1" />
+        <rect width="7" height="9" x="14" y="12" rx="1" />
+        <rect width="7" height="5" x="3" y="16" rx="1" />
+      </svg>
+    ),
+  },
+  {
+    id: 'store',
+    label: 'Tienda',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="m2.05 2.05 1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18" />
+        <path d="M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25" />
+        <circle cx="18" cy="20" r="2" />
+        <circle cx="8" cy="20" r="2" />
+      </svg>
+    ),
+  },
+]
 
-const emptyProduct = {
-  nombre: '',
-  precio: '',
-  descripcion: '',
-  cantidad: '',
-}
-
-const emptyServiceSummary = {
-  categorias: [],
-  servicios: [],
-  personas: [],
-}
-
-const emptyServicePerson = {
-  nombre: '',
-  apellido: '',
-  correo: '',
-  telefono: '',
-  area: '',
-  servicios: [],
-}
-
-const emptyRanking = {
-  porPersona: [],
-  porSemana: [],
-  porArea: [],
-}
-
-const AREA_OPTIONS = ['RH', 'IT', 'Marketing', 'Ventas', 'Finanzas', 'Operaciones']
-
-const groupByServicio = (rows) => {
-  const grouped = new Map()
-  rows.forEach((row) => {
-    if (!grouped.has(row.servicio)) grouped.set(row.servicio, [])
-    grouped.get(row.servicio).push(row)
-  })
-  return Array.from(grouped.entries())
-}
-
-const formatPrice = (price) =>
-  new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: 'MXN',
-  }).format(price)
-
-async function request(url, options) {
-  const response = await fetch(url, options)
-  const data = await response.json().catch(() => ({}))
-
-  if (!response.ok) {
-    throw new Error(data.error || 'No se pudo completar la operación')
-  }
-
-  return data
+const getPageFromLocation = () => {
+  const page = window.location.hash.slice(1)
+  return navigation.some((item) => item.id === page) ? page : 'store'
 }
 
 function App() {
-  const [section, setSection] = useState('inventario')
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [productos, setProductos] = useState([])
-  const [alertas, setAlertas] = useState([])
-  const [serviceSummary, setServiceSummary] = useState(emptyServiceSummary)
-  const [ranking, setRanking] = useState(emptyRanking)
-  const [serviceYear, setServiceYear] = useState('2026')
-  const [serviceWeek, setServiceWeek] = useState('38')
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [search, setSearch] = useState('')
-  const [error, setError] = useState('')
-  const [message, setMessage] = useState('')
-  const [modal, setModal] = useState(null)
-  const [selectedProduct, setSelectedProduct] = useState(null)
-  const [form, setForm] = useState(emptyProduct)
-  const [serviceForm, setServiceForm] = useState(emptyServicePerson)
+  const [activePage, setActivePage] = useState(getPageFromLocation)
+  const isDashboard = activePage === 'dashboard'
 
-  const cargarDatos = useCallback(async () => {
-    try {
-      const [productosData, alertasData] = await Promise.all([
-        request(`${API_URL}/productos`),
-        request(`${API_URL}/productos-alerta`),
-      ])
+  useEffect(() => {
+    const syncPageWithLocation = () => setActivePage(getPageFromLocation())
 
-      setProductos(productosData)
-      setAlertas(alertasData)
-      setError('')
-    } catch (requestError) {
-      setError(`${requestError.message}. Verifica que el servidor esté activo en el puerto 3001.`)
-    } finally {
-      setLoading(false)
+    if (!navigation.some((item) => `#${item.id}` === window.location.hash)) {
+      window.history.replaceState(null, '', '#store')
+    }
+
+    window.addEventListener('popstate', syncPageWithLocation)
+    window.addEventListener('hashchange', syncPageWithLocation)
+
+    return () => {
+      window.removeEventListener('popstate', syncPageWithLocation)
+      window.removeEventListener('hashchange', syncPageWithLocation)
     }
   }, [])
 
-  const cargarServicios = useCallback(async () => {
-    try {
-      const data = await request(`${API_URL}/servicios-resumen?anio=${serviceYear}&semana=${serviceWeek}`)
-      setServiceSummary(data)
-      setError('')
-    } catch (requestError) {
-      setError(requestError.message)
-    }
-  }, [serviceWeek, serviceYear])
-
-  const cargarRanking = useCallback(async () => {
-    try {
-      const data = await request(`${API_URL}/servicios-ranking`)
-      setRanking(data)
-    } catch (requestError) {
-      setError(requestError.message)
-    }
-  }, [])
-
-  const openAddPersonModal = () => {
-    setServiceForm(emptyServicePerson)
-    setModal('add-person')
-    setError('')
-    setMessage('')
-  }
-
-  useEffect(() => {
-    // oxlint-disable-next-line react/set-state-in-effect -- La vista se sincroniza con la API al montarse.
-    cargarDatos()
-  }, [cargarDatos])
-
-  useEffect(() => {
-    cargarServicios()
-  }, [cargarServicios])
-
-  useEffect(() => {
-    cargarRanking()
-  }, [cargarRanking])
-
-  const filteredProducts = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase('es-MX')
-    if (!term) return productos
-
-    return productos.filter((product) =>
-      `${product.nombre} ${product.descripcion || ''}`
-        .toLocaleLowerCase('es-MX')
-        .includes(term),
-    )
-  }, [productos, search])
-
-  const openAddModal = () => {
-    setForm(emptyProduct)
-    setSelectedProduct(null)
-    setModal('add')
-    setError('')
-    setMessage('')
-  }
-
-  const openEditModal = (product) => {
-    setForm({ ...emptyProduct, cantidad: String(product.cantidad) })
-    setSelectedProduct(product)
-    setModal('edit')
-    setError('')
-    setMessage('')
-  }
-
-  const closeModal = () => {
-    if (saving) return
-    setModal(null)
-    setSelectedProduct(null)
-  }
-
-  const handleChange = (event) => {
-    const { name, value } = event.target
-    setForm((currentForm) => ({ ...currentForm, [name]: value }))
-  }
-
-  const handleServiceChange = (event) => {
-    const { name, value } = event.target
-    setServiceForm((currentForm) => ({ ...currentForm, [name]: value }))
-  }
-
-  const toggleService = (serviceId) => {
-    setServiceForm((currentForm) => ({
-      ...currentForm,
-      servicios: currentForm.servicios.includes(serviceId)
-        ? currentForm.servicios.filter((id) => id !== serviceId)
-        : [...currentForm.servicios, serviceId],
-    }))
-  }
-
-  const handlePersonSubmit = async (event) => {
-    event.preventDefault()
-    setSaving(true)
-    setError('')
-    setMessage('')
-
-    try {
-      await request(`${API_URL}/usuarios-servicios`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...serviceForm,
-          anio: Number(serviceYear),
-          semana: Number(serviceWeek),
-        }),
-      })
-      setModal(null)
-      setMessage('Persona registrada correctamente.')
-      await Promise.all([cargarServicios(), cargarRanking()])
-    } catch (requestError) {
-      setError(requestError.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleSubmit = async (event) => {
-    event.preventDefault()
-    setSaving(true)
-    setError('')
-    setMessage('')
-
-    try {
-      if (modal === 'add') {
-        await request(`${API_URL}/productos`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            nombre: form.nombre.trim(),
-            precio: Number(form.precio),
-            descripcion: form.descripcion.trim(),
-            cantidad: Number(form.cantidad),
-          }),
-        })
-        setMessage('Producto agregado correctamente.')
-      } else {
-        await request(`${API_URL}/productos/${selectedProduct.id}/cantidad`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cantidad: Number(form.cantidad) }),
-        })
-        setMessage('Cantidad actualizada correctamente.')
-      }
-
-      setModal(null)
-      setSelectedProduct(null)
-      await cargarDatos()
-    } catch (requestError) {
-      setError(requestError.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const deleteProduct = async (product) => {
-    const confirmed = window.confirm(`¿Eliminar el producto "${product.nombre}"?`)
-    if (!confirmed) return
-
-    setError('')
-    setMessage('')
-
-    try {
-      await request(`${API_URL}/productos/${product.id}`, { method: 'DELETE' })
-      setMessage('Producto eliminado correctamente.')
-      await cargarDatos()
-    } catch (requestError) {
-      setError(requestError.message)
-    }
+  const selectPage = (page) => {
+    if (page === activePage) return
+    window.history.pushState(null, '', `#${page}`)
+    setActivePage(page)
   }
 
   const selectSection = (nextSection) => {
@@ -295,352 +89,55 @@ function App() {
   const rankingPorArea = useMemo(() => groupByServicio(ranking.porArea), [ranking.porArea])
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <div className="brand-lockup">
-          <span className="brand-mark">T</span>
-          <div>
-            <p className="eyebrow">Panel de operación</p>
-            <h1>Tienda Norte</h1>
+    <div className={`min-h-screen text-slate-800 ${isDashboard ? 'bg-[#eef7f0]' : 'bg-[#f4f7fb]'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-40 flex w-[76px] flex-col border-r px-3 py-5 shadow-sm md:w-60 md:px-4 ${
+        isDashboard
+          ? 'border-emerald-100 bg-[#f8fcf8] shadow-emerald-950/5'
+          : 'border-blue-100 bg-[#f8faff] shadow-blue-950/5'
+      }`}>
+        <div className="mb-8 flex items-center justify-center md:justify-start md:px-2">
+          <div className={`grid size-10 shrink-0 place-items-center rounded-xl text-sm font-bold text-white shadow-sm ${
+            isDashboard
+              ? 'bg-[#397a5a] shadow-emerald-900/20'
+              : 'bg-[#315f9f] shadow-blue-900/20'
+          }`}>
+            SQL
           </div>
         </div>
-        <button
-          className="menu-toggle"
-          type="button"
-          aria-label="Abrir menú de navegación"
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((open) => !open)}
-        >
-          <span />
-          <span />
-          <span />
-        </button>
-        <nav className={`main-nav ${menuOpen ? 'is-open' : ''}`} aria-label="Navegación principal">
-          <button className={section === 'inventario' ? 'nav-item active' : 'nav-item'} type="button" onClick={() => selectSection('inventario')}>
-            <span className="nav-icon">▦</span> Inventario
-          </button>
-          <button className={section === 'servicios' ? 'nav-item active' : 'nav-item'} type="button" onClick={() => selectSection('servicios')}>
-            <span className="nav-icon">◌</span> Servicios
-          </button>
+
+        <nav className="space-y-2" aria-label="Navegación principal">
+          {navigation.map((item) => {
+            const isActive = activePage === item.id
+
+            return (
+              <button
+                key={item.id}
+                className={`flex w-full items-center justify-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-colors md:justify-start ${
+                  isDashboard
+                    ? isActive
+                      ? 'bg-emerald-100 text-emerald-900'
+                      : 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-800'
+                    : isActive
+                      ? 'bg-blue-100 text-blue-900'
+                      : 'text-slate-500 hover:bg-blue-50 hover:text-blue-800'
+                }`}
+                type="button"
+                onClick={() => selectPage(item.id)}
+                aria-current={isActive ? 'page' : undefined}
+                title={item.label}
+              >
+                <span className="size-5 shrink-0">{item.icon}</span>
+                <span className="hidden md:inline">{item.label}</span>
+              </button>
+            )
+          })}
         </nav>
-      </header>
+      </aside>
 
-      {section === 'inventario' ? (
-        <div className="inventory">
-      <section className="table-section products-section">
-        <div className="section-heading">
-          <h2>Productos</h2>
-          <div className="table-actions">
-            <input
-              type="search"
-              placeholder="Buscar producto..."
-              aria-label="Buscar producto"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <button className="primary-button" type="button" onClick={openAddModal}>
-              Agregar producto
-            </button>
-          </div>
-        </div>
-
-        {error && <p className="feedback error-message">{error}</p>}
-        {message && <p className="feedback success-message">{message}</p>}
-
-        <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Producto</th>
-                <th>Precio</th>
-                <th>Cantidad</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan="5" className="empty-row">Cargando productos...</td></tr>
-              ) : filteredProducts.length === 0 ? (
-                <tr><td colSpan="5" className="empty-row">No se encontraron productos.</td></tr>
-              ) : (
-                filteredProducts.map((product) => (
-                  <tr key={product.id}>
-                    <td>{product.id}</td>
-                    <td>{product.nombre}</td>
-                    <td>{formatPrice(Number(product.precio))}</td>
-                    <td>{product.cantidad}</td>
-                    <td>
-                      <div className="row-actions">
-                        <button type="button" onClick={() => openEditModal(product)}>Editar</button>
-                        <button className="delete-button" type="button" onClick={() => deleteProduct(product)}>
-                          Eliminar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="table-section alerts-section">
-        <h2>Alertas</h2>
-        <p>Precio de $100 o más y cantidad de 10 o menos.</p>
-        <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Producto</th>
-                <th>Precio</th>
-                <th>Cantidad</th>
-              </tr>
-            </thead>
-            <tbody>
-              {alertas.length === 0 ? (
-                <tr><td colSpan="3" className="empty-row">Sin alertas por el momento.</td></tr>
-              ) : (
-                alertas.map((product) => (
-                  <tr key={product.id}>
-                    <td>{product.nombre}</td>
-                    <td>{formatPrice(Number(product.precio))}</td>
-                    <td className="low-stock">{product.stock_actual}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-        </div>
-      ) : (
-        <section className="services-page">
-          <div className="page-intro">
-            <div>
-              <p className="eyebrow">Análisis de uso</p>
-              <h2>Servicios</h2>
-              <p>Consulta cuántas personas utilizaron uno, dos o ningún servicio durante una semana.</p>
-            </div>
-            <div className="period-filter">
-              <label>Año<input type="number" min="2000" value={serviceYear} onChange={(event) => setServiceYear(event.target.value)} /></label>
-              <label>Semana<input type="number" min="1" max="53" value={serviceWeek} onChange={(event) => setServiceWeek(event.target.value)} /></label>
-              <button className="primary-button" type="button" onClick={cargarServicios}>Actualizar</button>
-              <button className="primary-button" type="button" onClick={openAddPersonModal}>Agregar registro</button>
-            </div>
-          </div>
-
-          {error && <p className="feedback error-message">{error}</p>}
-          {message && <p className="feedback success-message">{message}</p>}
-          <div className="service-summary-grid">
-            {serviceCards.map((category) => {
-              const people = category.people
-              const percentage = totalPeople ? Math.round((people / totalPeople) * 100) : 0
-              return (
-                <article className={`service-card ${category.color}`} key={category.key}>
-                  <div className="service-card-top"><span>{category.label}</span><strong>{percentage}%</strong></div>
-                  <div className="progress-track"><span style={{ width: `${percentage}%` }} /></div>
-                  <p><b>{people}</b> {people === 1 ? 'persona' : 'personas'}</p>
-                </article>
-              )
-            })}
-          </div>
-
-          <div className="services-detail-grid">
-            <section className="detail-panel">
-              <div className="panel-heading"><div><p className="eyebrow">Desglose semanal</p><h3>Visitas por servicio</h3></div><span className="total-badge">{totalPeople} personas</span></div>
-              <div className="service-list">
-                {serviceSummary.servicios.length === 0 ? <p className="empty-service">No hay servicios registrados.</p> : serviceSummary.servicios.map((service) => (
-                  <div className="service-row" key={service.id_servicio}><span>{service.nombre}</span><b>{service.visitas} visitas</b></div>
-                ))}
-              </div>
-            </section>
-            <aside className="insight-panel"><span className="insight-icon"></span><p className="eyebrow">Lectura rápida</p><h3>{categoryValues.dos} {categoryValues.dos === 1 ? 'persona usa' : 'personas usan'} ambos servicios</h3><p>Los porcentajes se calculan sobre todas las personas registradas, incluyendo quienes no tuvieron visitas en la semana seleccionada.</p></aside>
-          </div>
-
-          <section className="table-section people-section">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Registros de la semana</p>
-                <h3>Personas y servicios</h3>
-              </div>
-              <span className="total-badge">{serviceSummary.personas.length} personas</span>
-            </div>
-            <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Persona</th>
-                    <th>Correo</th>
-                    <th>Teléfono</th>
-                    <th>Servicios utilizados</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {serviceSummary.personas.length === 0 ? (
-                    <tr><td colSpan="4" className="empty-row">No hay personas registradas.</td></tr>
-                  ) : serviceSummary.personas.map((person) => (
-                    <tr key={person.id_usuario}>
-                      <td>{person.persona}</td>
-                      <td>{person.correo || '—'}</td>
-                      <td>{person.telefono || '—'}</td>
-                      <td>{person.servicios}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="table-section rankings-section">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Rankings</p>
-                <h3>¿Quién y cuándo se usa más cada servicio?</h3>
-              </div>
-            </div>
-
-            <div className="services-detail-grid">
-              <section className="detail-panel">
-                <div className="panel-heading">
-                  <div>
-                    <p className="eyebrow">Top visitantes</p>
-                    <h3>Personas que más visitan</h3>
-                  </div>
-                </div>
-                {rankingPorPersona.length === 0 ? (
-                  <p className="empty-service">Aún no hay visitas registradas.</p>
-                ) : rankingPorPersona.map(([servicio, rows]) => (
-                  <div className="service-list" key={`persona-${servicio}`}>
-                    <p className="ranking-servicio-title"><b>{servicio}</b></p>
-                    {rows.map((row, index) => (
-                      <div className="service-row" key={`${servicio}-${row.id_usuario}`}>
-                        <span>{index === 0 ? '🏆 ' : `${index + 1}. `}{row.persona}{row.area ? ` (${row.area})` : ''}</span>
-                        <b>{row.visitas} visitas</b>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </section>
-
-              <section className="detail-panel">
-                <div className="panel-heading">
-                  <div>
-                    <p className="eyebrow">Top semanas</p>
-                    <h3>Semanas con más visitas</h3>
-                  </div>
-                </div>
-                {rankingPorSemana.length === 0 ? (
-                  <p className="empty-service">Aún no hay visitas registradas.</p>
-                ) : rankingPorSemana.map(([servicio, rows]) => (
-                  <div className="service-list" key={`semana-${servicio}`}>
-                    <p className="ranking-servicio-title"><b>{servicio}</b></p>
-                    {rows.map((row, index) => (
-                      <div className="service-row" key={`${servicio}-${row.anio}-${row.semana}`}>
-                        <span>{index === 0 ? '🏆 ' : `${index + 1}. `}Semana {row.semana}, {row.anio}</span>
-                        <b>{row.visitas} visitas</b>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </section>
-
-              <section className="detail-panel">
-                <div className="panel-heading">
-                  <div>
-                    <p className="eyebrow">Top áreas</p>
-                    <h3>Área que más visita cada servicio</h3>
-                  </div>
-                </div>
-                {rankingPorArea.length === 0 ? (
-                  <p className="empty-service">Aún no hay áreas registradas.</p>
-                ) : rankingPorArea.map(([servicio, rows]) => (
-                  <div className="service-list" key={`area-${servicio}`}>
-                    <p className="ranking-servicio-title"><b>{servicio}</b></p>
-                    {rows.map((row, index) => (
-                      <div className="service-row" key={`${servicio}-${row.area}`}>
-                        <span>{index === 0 ? '🏆 ' : `${index + 1}. `}{row.area}</span>
-                        <b>{row.visitas} visitas</b>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </section>
-            </div>
-          </section>
-        </section>
-      )}
-
-      {modal && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={closeModal}>
-          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" onMouseDown={(event) => event.stopPropagation()}>
-            <h2 id="modal-title">
-              {modal === 'add' ? 'Agregar producto' : modal === 'add-person' ? 'Agregar registro de persona' : 'Editar cantidad'}
-            </h2>
-            {modal === 'edit' && <p className="modal-description">{selectedProduct.nombre}</p>}
-            {error && <p className="feedback error-message">{error}</p>}
-
-            {modal === 'add-person' ? (
-              <form onSubmit={handlePersonSubmit}>
-                <label>Nombre<input name="nombre" value={serviceForm.nombre} onChange={handleServiceChange} maxLength="100" required /></label>
-                <label>Apellido<input name="apellido" value={serviceForm.apellido} onChange={handleServiceChange} maxLength="100" /></label>
-                <label>Correo<input name="correo" type="email" value={serviceForm.correo} onChange={handleServiceChange} maxLength="150" /></label>
-                <label>Teléfono<input name="telefono" value={serviceForm.telefono} onChange={handleServiceChange} maxLength="20" /></label>
-                <label>Área
-                  <select name="area" value={serviceForm.area} onChange={handleServiceChange} required>
-                    <option value="" disabled>Selecciona un área</option>
-                    {AREA_OPTIONS.map((area) => (
-                      <option key={area} value={area}>{area}</option>
-                    ))}
-                  </select>
-                </label>
-                <fieldset className="service-checkboxes">
-                  <legend>Servicios utilizados</legend>
-                  <label><input type="checkbox" checked={serviceForm.servicios.includes(1)} onChange={() => toggleService(1)} /> Masajes</label>
-                  <label><input type="checkbox" checked={serviceForm.servicios.includes(2)} onChange={() => toggleService(2)} /> Rehabilitación</label>
-                </fieldset>
-                <div className="modal-actions">
-                  <button type="button" onClick={closeModal} disabled={saving}>Cancelar</button>
-                  <button className="primary-button" type="submit" disabled={saving}>{saving ? 'Guardando...' : 'Guardar registro'}</button>
-                </div>
-              </form>
-            ) : (
-            <form onSubmit={handleSubmit}>
-              {modal === 'add' && (
-                <>
-                  <label>
-                    Nombre
-                    <input name="nombre" value={form.nombre} onChange={handleChange} maxLength="100" required />
-                  </label>
-                  <label>
-                    Precio
-                    <input name="precio" type="number" min="0" step="0.01" value={form.precio} onChange={handleChange} required />
-                  </label>
-                  <label>
-                    Descripción
-                    <textarea name="descripcion" value={form.descripcion} onChange={handleChange} rows="3" />
-                  </label>
-                </>
-              )}
-
-              <label>
-                Cantidad
-                <input name="cantidad" type="number" min="0" step="1" value={form.cantidad} onChange={handleChange} required />
-              </label>
-
-              <div className="modal-actions">
-                <button type="button" onClick={closeModal} disabled={saving}>Cancelar</button>
-                <button className="primary-button" type="submit" disabled={saving}>
-                  {saving ? 'Guardando...' : 'Guardar'}
-                </button>
-              </div>
-            </form>
-            )}
-          </div>
-        </div>
-      )}
-    </main>
+      <div className="min-h-screen pl-[76px] md:pl-60">
+        {activePage === 'store' ? <StorePage /> : <DashboardPage />}
+      </div>
+    </div>
   )
 }
 

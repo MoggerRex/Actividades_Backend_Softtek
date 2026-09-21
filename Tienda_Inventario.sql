@@ -1,16 +1,22 @@
 -- ============================================================
--- BASE DE DATOS: TIENDA + REGISTRO DE VISITAS
+-- BASE DE DATOS: TIENDA_INVENTARIO
+-- Inventario de productos + Registro de usuarios y visitas a servicios
 -- ============================================================
 
--- 1. Creación de la base de datos limpia
+
+-- ============================================================
+-- 0. CREACIÓN DE LA BASE DE DATOS
+-- ============================================================
 DROP DATABASE IF EXISTS tienda_inventario;
 CREATE DATABASE tienda_inventario;
 USE tienda_inventario;
 
+
 -- ============================================================
--- PARTE 1: INVENTARIO
+-- PARTE 1: INVENTARIO DE PRODUCTOS
 -- ============================================================
 
+-- 1.1 Tabla de productos
 CREATE TABLE productos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
@@ -19,6 +25,7 @@ CREATE TABLE productos (
     cantidad INT NOT NULL DEFAULT 0
 );
 
+-- 1.2 Tabla de alertas de stock (se llena sola vía trigger, ver 1.5)
 CREATE TABLE alertas_stock (
     id INT AUTO_INCREMENT PRIMARY KEY,
     producto_id INT,
@@ -27,6 +34,7 @@ CREATE TABLE alertas_stock (
     FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
 );
 
+-- 1.3 Carga inicial de 30 productos
 INSERT INTO productos (nombre, precio, descripcion, cantidad) VALUES
 ('Teclado Mecánico RGB', 850.00, 'Teclado gamer con switches azules y retroiluminación', 12),
 ('Mouse Inalámbrico Ergonómico', 350.00, 'Mouse óptico recargable de 2.4GHz', 8),
@@ -59,8 +67,9 @@ INSERT INTO productos (nombre, precio, descripcion, cantidad) VALUES
 ('Bocina Bluetooth Portátil', 480.00, 'Resistente al agua IPX5', 4),
 ('Teclado Numérico USB', 140.00, 'Teclado externo para laptop', 16);
 
+-- 1.4 Vista: productos caros (>= $100) con stock crítico (<= 10)
 CREATE VIEW vista_alertas_inventario AS
-SELECT 
+SELECT
     id,
     nombre,
     precio,
@@ -69,6 +78,7 @@ SELECT
 FROM productos
 WHERE precio >= 100.00 AND cantidad <= 10;
 
+-- 1.5 Trigger: genera una alerta automática cuando el stock baja a 10 o menos
 DELIMITER //
 CREATE TRIGGER trigger_verificar_stock_bajo
 AFTER UPDATE ON productos
@@ -76,15 +86,20 @@ FOR EACH ROW
 BEGIN
     IF NEW.precio >= 100.00 AND NEW.cantidad <= 10 THEN
         INSERT INTO alertas_stock (producto_id, mensaje)
-        VALUES (NEW.id, CONCAT('AVISO: El producto "', NEW.nombre, '" (Precio: $', NEW.precio, ') tiene un stock crítico de ', NEW.cantidad, ' unidades.'));
+        VALUES (
+            NEW.id,
+            CONCAT('AVISO: El producto "', NEW.nombre, '" (Precio: $', NEW.precio, ') tiene un stock crítico de ', NEW.cantidad, ' unidades.')
+        );
     END IF;
 END//
 DELIMITER ;
 
+
 -- ============================================================
--- PARTE 2: REGISTRO DE USUARIOS Y VISITAS
+-- PARTE 2: USUARIOS, SERVICIOS Y VISITAS
 -- ============================================================
 
+-- 2.1 Tabla de usuarios
 CREATE TABLE usuarios (
     id_usuario INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
@@ -94,6 +109,7 @@ CREATE TABLE usuarios (
     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 2.2 Tabla de servicios (Masajes, Rehabilitación)
 CREATE TABLE servicios (
     id_servicio INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
@@ -101,6 +117,11 @@ CREATE TABLE servicios (
     activo BOOLEAN DEFAULT TRUE
 );
 
+-- 2.3 Tabla de visitas
+--     anio y semana se guardan explícitamente en cada INSERT para
+--     poder agrupar/filtrar reportes por semana sin recalcular nada.
+--     El UNIQUE evita que un usuario registre el mismo servicio
+--     dos veces en la misma semana.
 CREATE TABLE visitas (
     id_visita INT AUTO_INCREMENT PRIMARY KEY,
     id_usuario INT NOT NULL,
@@ -110,30 +131,20 @@ CREATE TABLE visitas (
     semana INT NOT NULL,
     FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
     FOREIGN KEY (id_servicio) REFERENCES servicios(id_servicio) ON DELETE CASCADE,
-    
-    -- CONDICIÓN: Evita que el mismo usuario registre el mismo servicio 2 veces en la misma semana
     UNIQUE (id_usuario, id_servicio, anio, semana)
 );
 
+-- 2.4 Carga de los 2 servicios
 INSERT INTO servicios (nombre, descripcion) VALUES
 ('Masajes', 'Sesión de masajes terapéuticos'),
 ('Rehabilitación', 'Sesión de rehabilitación física');
 
-UPDATE servicios
-SET nombre = CASE id_servicio
-    WHEN 1 THEN 'Masajes'
-    WHEN 2 THEN 'Rehabilitación'
-END,
-descripcion = CASE id_servicio
-    WHEN 1 THEN 'Sesión de masajes terapéuticos'
-    WHEN 2 THEN 'Sesión de rehabilitación física'
-END
-WHERE id_servicio IN (1, 2);
 
 -- ============================================================
--- PARTE 3: DATOS DE PRUEBA (200 USUARIOS REALES Y ESTÁTICOS)
+-- PARTE 3: DATOS DE PRUEBA (200 usuarios + visitas de ejemplo)
 -- ============================================================
 
+-- 3.1 Primeros 50 usuarios (base)
 INSERT INTO usuarios (nombre, apellido, correo, telefono) VALUES
 ('Luis', 'Hernández', 'luis.h@example.com', '5550000001'),
 ('Ana', 'García', 'ana.g@example.com', '5550000002'),
@@ -186,20 +197,22 @@ INSERT INTO usuarios (nombre, apellido, correo, telefono) VALUES
 ('Ramón', 'Valdez', 'ramon.v@example.com', '5550000049'),
 ('Isabel', 'Cabrera', 'isabel.c@example.com', '5550000050');
 
--- Generamos los siguientes 150 combinando los mismos nombres y apellidos base de los primeros 50 para completar los 200
+-- 3.2 Siguientes 150 usuarios, generados combinando nombres/apellidos
+--     de los 50 base, hasta completar los 200
 INSERT INTO usuarios (nombre, apellido, correo, telefono)
-SELECT 
-    u1.nombre, 
-    u2.apellido, 
-    CONCAT(LOWER(u1.nombre), '.', LOWER(u2.apellido), u1.id_usuario, '@example.com'), 
+SELECT
+    u1.nombre,
+    u2.apellido,
+    CONCAT(LOWER(u1.nombre), '.', LOWER(u2.apellido), u1.id_usuario, '@example.com'),
     CONCAT('5551', LPAD(u1.id_usuario * u2.id_usuario, 5, '0'))
 FROM usuarios u1
 JOIN usuarios u2 ON u1.id_usuario != u2.id_usuario
 LIMIT 150;
 
--- Registros de Visitas para la Semana 38, 2026 (Datos estáticos y directos)
-INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
+-- 3.3 Visitas de ejemplo para la Semana 38, 2026
+
 -- Usuarios que usaron AMBOS servicios
+INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 (1, 1, '2026-09-14 10:00:00', 2026, 38), (1, 2, '2026-09-15 11:00:00', 2026, 38),
 (4, 1, '2026-09-16 10:00:00', 2026, 38), (4, 2, '2026-09-17 10:00:00', 2026, 38),
 (10, 1, '2026-09-14 09:00:00', 2026, 38), (10, 2, '2026-09-18 14:00:00', 2026, 38),
@@ -209,9 +222,10 @@ INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 (55, 1, '2026-09-14 13:00:00', 2026, 38), (55, 2, '2026-09-15 15:00:00', 2026, 38),
 (70, 1, '2026-09-16 09:45:00', 2026, 38), (70, 2, '2026-09-17 09:45:00', 2026, 38),
 (85, 1, '2026-09-14 10:30:00', 2026, 38), (85, 2, '2026-09-16 10:30:00', 2026, 38),
-(100, 1, '2026-09-15 14:20:00', 2026, 38), (100, 2, '2026-09-18 14:20:00', 2026, 38),
+(100, 1, '2026-09-15 14:20:00', 2026, 38), (100, 2, '2026-09-18 14:20:00', 2026, 38);
 
--- Usuarios que usaron SOLO Masajes (1)
+-- Usuarios que usaron SOLO Masajes (servicio 1)
+INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 (2, 1, '2026-09-15 09:00:00', 2026, 38),
 (5, 1, '2026-09-14 11:00:00', 2026, 38),
 (8, 1, '2026-09-16 14:00:00', 2026, 38),
@@ -221,9 +235,10 @@ INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 (30, 1, '2026-09-15 12:45:00', 2026, 38),
 (45, 1, '2026-09-16 09:15:00', 2026, 38),
 (60, 1, '2026-09-17 16:20:00', 2026, 38),
-(90, 1, '2026-09-18 11:10:00', 2026, 38),
+(90, 1, '2026-09-18 11:10:00', 2026, 38);
 
--- Usuarios que usaron SOLO Rehabilitación (2)
+-- Usuarios que usaron SOLO Rehabilitación (servicio 2)
+INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 (3, 2, '2026-09-16 13:00:00', 2026, 38),
 (6, 2, '2026-09-14 15:30:00', 2026, 38),
 (9, 2, '2026-09-15 08:45:00', 2026, 38),
@@ -235,12 +250,28 @@ INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 (75, 2, '2026-09-17 13:25:00', 2026, 38),
 (120, 2, '2026-09-18 08:15:00', 2026, 38);
 
+
 -- ============================================================
--- PARTE 4: CONSULTAS (PRUEBA FINAL)
+-- PARTE 4: PRUEBA DEL TRIGGER
 -- ============================================================
 
--- Comprobar si el trigger funciona restando piezas al ID 1
+-- Baja el stock del producto 1 a 8 piezas.
+-- Como su precio es >= $100, dispara el trigger y crea un registro
+-- en alertas_stock automáticamente.
 UPDATE productos SET cantidad = 8 WHERE id = 1;
 
--- Verificar productos
-SELECT * FROM productos;
+
+-- ============================================================
+-- PARTE 5: CONSULTAS (todo lo que puedes ir a ver, junto aquí)
+-- ============================================================
+
+-- ---------- Inventario ----------
+SELECT * FROM productos;                  -- Todos los productos
+SELECT * FROM alertas_stock;              -- Alertas generadas por el trigger
+SELECT * FROM vista_alertas_inventario;   -- Vista: productos caros con stock crítico
+
+-- ---------- Usuarios y servicios ----------
+SELECT * FROM usuarios;                   -- Los 200 usuarios
+SELECT COUNT(*) AS total_usuarios FROM usuarios;  -- Verificar que sí sean 200
+SELECT * FROM servicios;                  -- Los servicios disponibles (Masajes, Rehabilitación)
+SELECT * FROM visitas;                    -- Todas las visitas registradas

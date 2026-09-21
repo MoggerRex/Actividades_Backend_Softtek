@@ -1,0 +1,92 @@
+Para estructurar esta nueva sección de **Clientes** reutilizando la base de datos `tienda_inventario`, se analiza el diseño lógico paso a paso:
+
+---
+
+### 1. Estructura de Tablas (¿Qué tablas nuevas necesitas?)
+
+Solo necesitas **una tabla nueva**: **`pedidos`**.
+
+* **`usuarios` (Clientes - Ya existe):** Funciona como la tabla principal de clientes.
+* **`productos` (Ya existe):** Mantiene la lista de artículos.
+* **`pedidos` (Nueva):** Como buscas una estructura simple para insertar compras de forma directa, no requieres una tabla intermedia de detalle de pedidos. La tabla `pedidos` guardará la transacción directa asociada al cliente.
+* **Atributos clave:**
+* Identificador del pedido.
+* Relación con el cliente (Clave foránea apuntando a `usuarios`).
+* Fecha y hora del pedido (Por defecto toma la fecha actual del sistema).
+* Monto total del pedido.
+
+
+
+
+
+---
+
+### 2. ¿Dónde calcular el gasto y el tipo de cliente?
+
+El gasto y la clasificación de clientes **se deben calcular en tiempo real a través de Vistas (Views)** en SQL, **no en la tabla de usuarios ni en el frontend**.
+
+* **Razones:**
+1. **Cálculo basado en tiempo variable:** La regla depende de "los últimos 90 días" o "los últimos 2 meses". Si guardas el "tipo de cliente" como una columna fija en la tabla `usuarios`, el valor se desactualizaría al pasar los días.
+2. **Centralización de reglas:** Si cambias la definición de "Cliente en riesgo", solo modificas la Vista en la base de datos sin alterar tu código de backend o React.
+
+
+
+---
+
+### 3. Vistas Lógicas Necesarias (Views)
+
+Se recomienda dividir el cálculo en dos vistas interconectadas para mantener la consulta limpia:
+
+#### **Vista 1: Métricas de Clientes (Pre-cálculo)**
+
+Agrupa todos los registros de la tabla `pedidos` por cada `id_usuario` utilizando la función `CURDATE()` para evaluar rangos de tiempo:
+
+* **Monto total gastado:** Suma de todos los pedidos históricos o acumulados.
+* **Pedidos en los últimos 90 días:** Conteo de pedidos donde la fecha esté dentro del rango de 90 días anteriores a `CURDATE()`.
+* **Pedidos del mes actual:** Conteo de pedidos realizados entre el día 1 del mes en curso y la fecha actual.
+* **Pedidos del mes anterior:** Conteo de pedidos realizados durante todo el mes calendario previo.
+
+#### **Vista 2: Clasificación y Estatus de Clientes**
+
+Toma los datos procesados en la **Vista 1** y utiliza una condición lógica (`CASE WHEN`) para asignar la etiqueta correspondiente a cada cliente:
+
+* **Si** "Pedidos en los últimos 90 días" = 0 **Y** "Monto total gastado" < 5000 $\rightarrow$ **`Cliente En Riesgo`**
+* **Si** "Pedidos en los últimos 90 días" $\ge$ 10 **Y** "Monto total gastado" $\ge$ 15000 **Y** "Pedidos del mes actual" $\ge$ 4 **Y** "Pedidos del mes anterior" $\ge$ 4 $\rightarrow$ **`Cliente Alto Nivel`**
+* **En cualquier otro caso** $\rightarrow$ **`Cliente Normal`**
+
+---
+
+### 4. Procedimientos Almacenados Necesarios (Stored Procedures)
+
+Son recomendables para realizar inserciones y consultar los rankings de forma óptima:
+
+1. **Procedimiento para Registrar Pedido:**
+* Recibe el ID del usuario y el monto total.
+* Inserta el registro en la tabla `pedidos` asignando la fecha/hora actual del servidor.
+
+
+2. **Procedimiento para Consultas de Ranking y Dashboard:**
+* **Mejor Cliente de Alto Nivel:** Realiza una consulta sobre la **Vista 2** filtrando por "Alto Nivel", ordenada de mayor a menor por gasto total o número de pedidos, limitando el resultado al primer puesto.
+* **Cliente con Más Riesgo:** Consulta la **Vista 2** filtrando por "En Riesgo", ordenada ascendentemente por la fecha del último pedido registrado o por el total gastado.
+* **Porcentajes para Gráficas:** Agrupa la **Vista 2** por la categoría ("Alto Nivel", "En Riesgo", "Normal") y calcula la proporción respecto al total global de usuarios registrados.
+
+
+
+---
+
+### 5. ¿Necesitas Triggers?
+
+**No son necesarios para la lógica de clientes.**
+
+* Dado que la clasificación depende de rangos de fechas dinámicos respecto al día actual (`CURDATE()`), los triggers de inserción/actualización no aplican bien aquí, ya que el estatus de un cliente cambia con el paso del tiempo aunque no realice ninguna acción. La **Vista** resuelve este problema recalculando los valores en cada consulta.
+
+---
+
+### Resumen del Flujo de Datos
+
+1. **Inserción:** Insertas pedidos asignando `id_usuario` y `monto`.
+2. **Procesamiento SQL:** Las Vistas filtran los pedidos comparando `fecha_pedido` con `CURDATE()`.
+3. **Consumo del Frontend:**
+* Para la **Tabla de Usuarios**: Consultas la vista principal para mostrar Nombre, Estatus (Alto/Riesgo/Normal), Total Gastado y Total de Pedidos.
+* Para las **Gráficas de %**: Consultas el agrupado por tipo de cliente.
+* Para las **Tarjetas de Ranking**: Consultas el registro superior de "Alto Nivel" y el de mayor inactividad en "En Riesgo".

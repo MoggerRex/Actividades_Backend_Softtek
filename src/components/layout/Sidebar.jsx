@@ -2,22 +2,22 @@ import navigation from './navigation.jsx'
 
 const themes = {
   dashboard: {
-    aside: 'border-emerald-100 bg-[#f8fcf8] shadow-emerald-950/5',
-    brand: 'bg-[#397a5a] shadow-emerald-900/20',
-    active: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-200',
-    idle: 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-800 dark:text-slate-400 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200',
+    aside: 'border-slate-200 bg-[#f8fcf8] shadow-emerald-950/5',
+    brand: 'bg-[#16a05d] shadow-emerald-900/30',
+    active: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-500/25 dark:text-emerald-300',
+    idle: 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-800 dark:text-slate-400 dark:hover:bg-emerald-500/15 dark:hover:text-emerald-300',
   },
   store: {
-    aside: 'border-blue-100 bg-[#f8faff] shadow-blue-950/5',
-    brand: 'bg-[#315f9f] shadow-blue-900/20',
-    active: 'bg-blue-100 text-blue-900 dark:bg-blue-500/20 dark:text-blue-200',
-    idle: 'text-slate-500 hover:bg-blue-50 hover:text-blue-800 dark:text-slate-400 dark:hover:bg-blue-500/10 dark:hover:text-blue-200',
+    aside: 'border-slate-200 bg-[#f8faff] shadow-blue-950/5',
+    brand: 'bg-[#2563eb] shadow-blue-900/30',
+    active: 'bg-blue-100 text-blue-900 dark:bg-blue-500/25 dark:text-blue-300',
+    idle: 'text-slate-500 hover:bg-blue-50 hover:text-blue-800 dark:text-slate-400 dark:hover:bg-blue-500/15 dark:hover:text-blue-300',
   },
   customers: {
-    aside: 'border-rose-100 bg-[#fcf8f9] shadow-rose-950/5',
-    brand: 'bg-[#7a2746] shadow-rose-950/20',
-    active: 'bg-[#f3dfe6] text-[#681d3a] dark:bg-rose-500/20 dark:text-rose-200',
-    idle: 'text-slate-500 hover:bg-[#f8edf1] hover:text-[#7a2746] dark:text-slate-400 dark:hover:bg-rose-500/10 dark:hover:text-rose-200',
+    aside: 'border-slate-200 bg-[#fcf8f9] shadow-rose-950/5',
+    brand: 'bg-[#be185d] shadow-rose-950/30',
+    active: 'bg-[#f3dfe6] text-[#681d3a] dark:bg-rose-500/25 dark:text-rose-300',
+    idle: 'text-slate-500 hover:bg-[#f8edf1] hover:text-[#7a2746] dark:text-slate-400 dark:hover:bg-rose-500/15 dark:hover:text-rose-300',
   },
 }
 
@@ -25,7 +25,7 @@ function Sidebar({ activePage, onSelectPage }) {
   const theme = themes[activePage] || themes.store
 
   return (
-    <aside className={`fixed inset-y-0 left-0 z-40 flex w-[76px] flex-col border-r px-3 py-5 shadow-sm transition-colors md:w-60 md:px-4 dark:border-white/10 dark:bg-[#202020] dark:shadow-black/20 ${
+    <aside className={`fixed inset-y-0 left-0 z-40 flex w-[76px] flex-col border-r px-3 py-5 shadow-sm transition-colors md:w-60 md:px-4 dark:border-white/10 dark:bg-[#0f0f0f] dark:shadow-black/40 ${
       theme.aside
     }`}>
       <div className="mb-8 flex items-center justify-center md:justify-start md:px-2">

@@ -189,14 +189,14 @@ function StorePage() {
   return (
     <div className="min-h-full">
       <main className="mx-auto max-w-[1450px] px-4 py-6 sm:px-6 lg:py-8">
-        <div className="mb-6 rounded-2xl border border-blue-100 dark:border-blue-400/15 bg-white/80 dark:bg-[#242424]/80 p-3 shadow-sm shadow-blue-900/5">
+        <div className="mb-6 rounded-[10px] bg-white/80 dark:bg-[#101010]/90 p-3 shadow-sm shadow-blue-900/5 dark:shadow-[0_8px_24px_rgba(0,0,0,0.28)]">
           <label className="relative mx-auto block w-full max-w-2xl">
             <span className="sr-only">Buscar producto</span>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 fill-slate-400" aria-hidden="true">
               <path d="M480 272C480 317.9 465.1 360.3 440 394.7L566.6 521.4C579.1 533.9 579.1 554.2 566.6 566.7C554.1 579.2 533.8 579.2 521.3 566.7L394.7 440C360.3 465.1 317.9 480 272 480C157.1 480 64 386.9 64 272C64 157.1 157.1 64 272 64C386.9 64 480 157.1 480 272zM272 416C351.5 416 416 351.5 416 272C416 192.5 351.5 128 272 128C192.5 128 128 192.5 128 272C128 351.5 192.5 416 272 416z" />
             </svg>
             <input
-              className="h-11 w-full rounded-xl border border-blue-100 bg-blue-50/40 py-2 pl-11 pr-4 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100 dark:border-blue-400/15 dark:bg-blue-500/10 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:ring-blue-900"
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white py-2 pl-11 pr-4 text-sm text-slate-800 outline-none placeholder:text-slate-400 transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:bg-[#101010] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-white/25 dark:focus:ring-white/10"
               type="search"
               placeholder="Buscar productos"
               value={search}
@@ -207,7 +207,7 @@ function StorePage() {
             <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Productos</h1>
               <button
-                className="inline-flex h-10 items-center gap-2 self-start rounded-[10px] bg-[#315f9f] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#284f86] focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-10 items-center gap-2 self-start rounded-[10px] bg-[#2563eb] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 disabled:cursor-not-allowed disabled:opacity-60"
                 type="button"
                 onClick={openAddModal}
               >
@@ -222,22 +222,22 @@ function StorePage() {
               <p className="mb-4 rounded-[10px] border border-red-200 dark:border-red-400/25 bg-red-50 dark:bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">{error}</p>
             )}
             {message && (
-              <p className="mb-4 rounded-[10px] border border-blue-200 dark:border-blue-400/25 bg-blue-50 dark:bg-blue-500/10 px-4 py-3 text-sm text-blue-700 dark:text-blue-300">{message}</p>
+              <p className="mb-4 rounded-[10px] border border-blue-200 dark:border-blue-400/25 bg-blue-50 dark:bg-blue-500/15 px-4 py-3 text-sm text-blue-700 dark:text-blue-300">{message}</p>
             )}
 
             <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(340px,1fr)]">
-            <section className="min-w-0 overflow-hidden rounded-[10px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#242424]">
+            <section className="min-w-0 overflow-hidden rounded-[10px] bg-white dark:bg-[#101010] shadow-sm dark:shadow-[0_8px_24px_rgba(0,0,0,0.24)]">
               <div className="flex flex-col gap-3 border-b border-slate-200 dark:border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2.5">
                   <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Lista de productos</h2>
-                  <span className="rounded-full bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:text-blue-300">{filteredProducts.length}</span>
+                  <span className="rounded-full bg-blue-50 dark:bg-blue-500/15 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:text-blue-300">{filteredProducts.length}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     className={`h-8 rounded-[10px] border px-3 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900 ${
                       sort.field === 'precio'
-                        ? 'border-[#315f9f] bg-[#315f9f] text-white'
-                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-[#242424] text-slate-600 dark:text-slate-300 hover:border-blue-300 hover:text-blue-700 dark:hover:text-blue-300'
+                        ? 'border-[#2563eb] bg-[#2563eb] text-white'
+                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-[#101010] text-slate-600 dark:text-slate-300 hover:border-blue-300 hover:text-blue-700 dark:hover:text-blue-300'
                     }`}
                     type="button"
                     onClick={() => toggleSort('precio')}
@@ -248,8 +248,8 @@ function StorePage() {
                   <button
                     className={`h-8 rounded-[10px] border px-3 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900 ${
                       sort.field === 'cantidad'
-                        ? 'border-[#315f9f] bg-[#315f9f] text-white'
-                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-[#242424] text-slate-600 dark:text-slate-300 hover:border-blue-300 hover:text-blue-700 dark:hover:text-blue-300'
+                        ? 'border-[#2563eb] bg-[#2563eb] text-white'
+                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-[#101010] text-slate-600 dark:text-slate-300 hover:border-blue-300 hover:text-blue-700 dark:hover:text-blue-300'
                     }`}
                     type="button"
                     onClick={() => toggleSort('cantidad')}
@@ -262,7 +262,7 @@ function StorePage() {
 
               <div className="max-h-[560px] overflow-auto">
                 <table className="w-full min-w-[760px] border-collapse text-left text-sm">
-                  <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-[#202020]/95 backdrop-blur-sm">
+                  <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-[#0b0b0b]/95 backdrop-blur-sm">
                     <tr className="border-b border-slate-200 dark:border-white/10 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                       <th className="w-20 px-5 py-3">ID</th>
                       <th className="px-5 py-3">Producto</th>
@@ -313,16 +313,16 @@ function StorePage() {
               </div>
             </section>
 
-            <section className="min-w-0 overflow-hidden rounded-[10px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#242424]">
+            <section className="min-w-0 overflow-hidden rounded-[10px] bg-white dark:bg-[#101010] shadow-sm dark:shadow-[0_8px_24px_rgba(0,0,0,0.24)]">
               <div className="border-b border-slate-200 dark:border-white/10 px-5 py-4">
                 <div className="flex items-center gap-2.5">
                   <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Alertas</h2>
-                  <span className="rounded-full bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:text-blue-300">{alertas.length}</span>
+                  <span className="rounded-full bg-blue-50 dark:bg-blue-500/15 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:text-blue-300">{alertas.length}</span>
                 </div>
               </div>
               <div className="max-h-80 overflow-auto">
                 <table className="w-full border-collapse text-left text-sm">
-                  <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-[#202020]/95">
+                  <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-[#0b0b0b]/95">
                     <tr className="border-b border-slate-200 dark:border-white/10 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                       <th className="px-5 py-3">Producto</th>
                       <th className="px-5 py-3 text-right">Precio</th>
@@ -353,7 +353,7 @@ function StorePage() {
       {productToDelete && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 backdrop-blur-[2px]" role="presentation" onMouseDown={closeDeleteModal}>
           <div
-            className="w-full max-w-sm rounded-[10px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#242424] p-6 shadow-2xl"
+            className="w-full max-w-sm rounded-[10px] bg-white dark:bg-[#101010] p-6 shadow-2xl shadow-black/30"
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="delete-modal-title"
@@ -369,7 +369,7 @@ function StorePage() {
 
             <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 dark:border-white/5 pt-5">
               <button
-                className="h-10 rounded-[10px] border border-slate-300 dark:border-white/15 bg-white dark:bg-[#242424] px-4 text-sm font-semibold text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-10 rounded-[10px] border border-slate-300 dark:border-white/15 bg-white dark:bg-[#101010] px-4 text-sm font-semibold text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
                 type="button"
                 onClick={closeDeleteModal}
                 disabled={deleting}
@@ -392,7 +392,7 @@ function StorePage() {
       {modal && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 backdrop-blur-[2px]" role="presentation" onMouseDown={closeModal}>
           <div
-            className="w-full max-w-md rounded-[10px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#242424] p-6 shadow-2xl"
+            className="w-full max-w-md rounded-[10px] bg-white dark:bg-[#101010] p-6 shadow-2xl shadow-black/30"
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
@@ -415,27 +415,27 @@ function StorePage() {
                 <>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                     Nombre
-                    <input className="mt-1.5 h-10 w-full rounded-[10px] border border-slate-300 dark:border-white/15 bg-white dark:bg-[#242424] px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900" name="nombre" value={form.nombre} onChange={handleChange} maxLength="100" required />
+                    <input className="mt-1.5 h-10 w-full rounded-[10px] border border-slate-300 dark:border-white/15 bg-white dark:bg-[#101010] px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900" name="nombre" value={form.nombre} onChange={handleChange} maxLength="100" required />
                   </label>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                     Precio
-                    <input className="mt-1.5 h-10 w-full rounded-[10px] border border-slate-300 dark:border-white/15 bg-white dark:bg-[#242424] px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900" name="precio" type="number" min="0" step="0.01" value={form.precio} onChange={handleChange} required />
+                    <input className="mt-1.5 h-10 w-full rounded-[10px] border border-slate-300 dark:border-white/15 bg-white dark:bg-[#101010] px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900" name="precio" type="number" min="0" step="0.01" value={form.precio} onChange={handleChange} required />
                   </label>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                     Descripción
-                    <textarea className="mt-1.5 w-full resize-y rounded-[10px] border border-slate-300 dark:border-white/15 bg-white dark:bg-[#242424] px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900" name="descripcion" value={form.descripcion} onChange={handleChange} rows="3" />
+                    <textarea className="mt-1.5 w-full resize-y rounded-[10px] border border-slate-300 dark:border-white/15 bg-white dark:bg-[#101010] px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900" name="descripcion" value={form.descripcion} onChange={handleChange} rows="3" />
                   </label>
                 </>
               )}
 
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                 Cantidad
-                <input className="mt-1.5 h-10 w-full rounded-[10px] border border-slate-300 dark:border-white/15 bg-white dark:bg-[#242424] px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900" name="cantidad" type="number" min="0" step="1" value={form.cantidad} onChange={handleChange} required />
+                <input className="mt-1.5 h-10 w-full rounded-[10px] border border-slate-300 dark:border-white/15 bg-white dark:bg-[#101010] px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900" name="cantidad" type="number" min="0" step="1" value={form.cantidad} onChange={handleChange} required />
               </label>
 
               <div className="flex justify-end gap-2 border-t border-slate-100 dark:border-white/5 pt-5">
-                <button className="h-10 rounded-[10px] border border-slate-300 dark:border-white/15 bg-white dark:bg-[#242424] px-4 text-sm font-semibold text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={closeModal} disabled={saving}>Cancelar</button>
-                <button className="h-10 rounded-[10px] bg-[#315f9f] px-4 text-sm font-semibold text-white transition hover:bg-[#284f86] disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={saving}>
+                <button className="h-10 rounded-[10px] border border-slate-300 dark:border-white/15 bg-white dark:bg-[#101010] px-4 text-sm font-semibold text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={closeModal} disabled={saving}>Cancelar</button>
+                <button className="h-10 rounded-[10px] bg-[#2563eb] px-4 text-sm font-semibold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={saving}>
                   {saving ? 'Guardando...' : 'Guardar'}
                 </button>
               </div>

@@ -30,7 +30,10 @@ db.connect((err) => {
 
 const isPositiveId = (value) => Number.isInteger(Number(value)) && Number(value) > 0;
 const isValidQuantity = (value) => Number.isInteger(Number(value)) && Number(value) >= 0;
-const AREA_OPTIONS = ['RH', 'IT', 'Marketing', 'Ventas', 'Finanzas', 'Operaciones'];
+
+// ============================================================
+// PRODUCTOS - Consultas (SELECT directo y uso de VISTA)
+// ============================================================
 
 app.get('/api/productos', (req, res) => {
   const sql = 'SELECT * FROM productos ORDER BY id ASC';
@@ -45,13 +48,8 @@ app.get('/api/productos', (req, res) => {
 });
 
 app.get('/api/productos-alerta', (req, res) => {
-  const sql = `
-    SELECT id, nombre, precio, cantidad AS stock_actual,
-           '¡ALERTA! Reabastecer producto (Precio >= $100 y Stock <= 10)' AS aviso
-    FROM productos
-    WHERE precio >= 100.00 AND cantidad <= 10
-    ORDER BY id ASC
-  `;
+  // Aprovecha la vista creada en el script de SQL
+  const sql = 'SELECT * FROM vista_alertas_inventario ORDER BY id ASC';
 
   db.query(sql, (err, result) => {
     if (err) {
@@ -61,6 +59,76 @@ app.get('/api/productos-alerta', (req, res) => {
     res.json(result);
   });
 });
+
+// ============================================================
+// PRODUCTOS - Insertar, actualizar cantidad y eliminar
+// Usa sp_insertar_producto, sp_actualizar_cantidad_producto y sp_eliminar_producto
+// ============================================================
+
+app.post('/api/productos', (req, res) => {
+  const nombre = String(req.body.nombre || '').trim();
+  const descripcion = String(req.body.descripcion || '').trim();
+  const precio = Number(req.body.precio);
+  const cantidad = Number(req.body.cantidad);
+
+  if (!nombre || !Number.isFinite(precio) || precio < 0 || !isValidQuantity(cantidad)) {
+    return res.status(400).json({
+      error: 'Nombre, precio y cantidad son obligatorios y deben tener valores válidos',
+    });
+  }
+
+  db.query(
+    'CALL sp_insertar_producto(?, ?, ?, ?)',
+    [nombre, precio, descripcion, cantidad],
+    (err) => {
+      if (err) {
+        console.error('Error insertando producto:', err);
+        return res.status(500).json({ error: 'No se pudo agregar el producto' });
+      }
+
+      res.status(201).json({ message: 'Producto agregado correctamente' });
+    },
+  );
+});
+
+app.patch('/api/productos/:id/cantidad', (req, res) => {
+  const { id } = req.params;
+  const cantidad = Number(req.body.cantidad);
+
+  if (!isPositiveId(id) || !isValidQuantity(cantidad)) {
+    return res.status(400).json({ error: 'El ID y la cantidad deben ser valores válidos' });
+  }
+
+  db.query('CALL sp_actualizar_cantidad_producto(?, ?)', [Number(id), cantidad], (err) => {
+    if (err) {
+      console.error('Error actualizando cantidad:', err);
+      return res.status(500).json({ error: 'No se pudo actualizar la cantidad' });
+    }
+
+    res.json({ message: 'Cantidad actualizada correctamente' });
+  });
+});
+
+app.delete('/api/productos/:id', (req, res) => {
+  const { id } = req.params;
+
+  if (!isPositiveId(id)) {
+    return res.status(400).json({ error: 'El ID del producto no es válido' });
+  }
+
+  db.query('CALL sp_eliminar_producto(?)', [Number(id)], (err) => {
+    if (err) {
+      console.error('Error eliminando producto:', err);
+      return res.status(500).json({ error: 'No se pudo eliminar el producto' });
+    }
+
+    res.json({ message: 'Producto eliminado correctamente' });
+  });
+});
+
+// ============================================================
+// SERVICIOS - Reportes y estadísticas
+// ============================================================
 
 app.get('/api/servicios-resumen', (req, res) => {
   const anio = Number(req.query.anio);
@@ -116,6 +184,8 @@ app.get('/api/servicios-resumen', (req, res) => {
       TRIM(CONCAT(u.nombre, ' ', COALESCE(u.apellido, ''))) AS persona,
       u.correo,
       u.telefono,
+      COALESCE(u.area, 'Sin área') AS area,
+      COALESCE(u.rol, 'Sin rol') AS rol,
       COALESCE(
         GROUP_CONCAT(
           DISTINCT CASE s.id_servicio
@@ -135,7 +205,7 @@ app.get('/api/servicios-resumen', (req, res) => {
       AND v.semana = ?
     LEFT JOIN servicios s
       ON s.id_servicio = v.id_servicio
-    GROUP BY u.id_usuario, u.nombre, u.apellido, u.correo, u.telefono
+    GROUP BY u.id_usuario, u.nombre, u.apellido, u.correo, u.telefono, u.area, u.rol
     ORDER BY u.id_usuario
   `;
 
@@ -273,11 +343,18 @@ app.get('/api/servicios-ranking', (req, res) => {
   });
 });
 
+// ============================================================
+// SERVICIOS - Registrar persona + sus visitas
+// Usa sp_agregar_usuario (6 parámetros) y sp_registrar_visita
+// ============================================================
+
 app.post('/api/usuarios-servicios', (req, res) => {
   const nombre = String(req.body.nombre || '').trim();
   const apellido = String(req.body.apellido || '').trim();
   const correo = String(req.body.correo || '').trim();
   const telefono = String(req.body.telefono || '').trim();
+  const area = String(req.body.area || '').trim();
+  const rol = String(req.body.rol || '').trim();
   const anio = Number(req.body.anio);
   const semana = Number(req.body.semana);
   const servicios = Array.isArray(req.body.servicios)
@@ -290,6 +367,8 @@ app.post('/api/usuarios-servicios', (req, res) => {
     apellido.length > 100 ||
     correo.length > 150 ||
     telefono.length > 20 ||
+    area.length > 50 ||
+    rol.length > 100 ||
     !Number.isInteger(anio) ||
     anio < 2000 ||
     !Number.isInteger(semana) ||
@@ -297,7 +376,7 @@ app.post('/api/usuarios-servicios', (req, res) => {
     semana > 53 ||
     servicios.some((id) => !Number.isInteger(id) || id < 1 || id > 2)
   ) {
-    return res.status(400).json({ error: 'Los datos de la persona, año, semana y servicios no son válidos' });
+    return res.status(400).json({ error: 'Los datos de la persona, área, rol, año, semana o servicios no son válidos' });
   }
 
   db.beginTransaction((transactionError) => {
@@ -306,10 +385,18 @@ app.post('/api/usuarios-servicios', (req, res) => {
       return res.status(500).json({ error: 'No se pudo iniciar el registro' });
     }
 
+    // Llamada corregida a sp_agregar_usuario con los 6 parámetros definidos en SQL
     db.query(
-      'INSERT INTO usuarios (nombre, apellido, correo, telefono) VALUES (?, ?, ?, ?)',
-      [nombre, apellido || null, correo || null, telefono || null],
-      (userError, userResult) => {
+      'CALL sp_agregar_usuario(?, ?, ?, ?, ?, ?)',
+      [
+        nombre,
+        apellido || null,
+        correo || null,
+        telefono || null,
+        area || null,
+        rol || null,
+      ],
+      (userError) => {
         if (userError) {
           return db.rollback(() => {
             console.error('Error insertando usuario:', userError);
@@ -317,104 +404,60 @@ app.post('/api/usuarios-servicios', (req, res) => {
           });
         }
 
-        if (servicios.length === 0) {
-          return db.commit((commitError) => {
-            if (commitError) {
-              return db.rollback(() => res.status(500).json({ error: 'No se pudo guardar la persona' }));
-            }
-            res.status(201).json({ message: 'Persona agregada correctamente', id_usuario: userResult.insertId });
-          });
-        }
+        db.query('SELECT LAST_INSERT_ID() AS id_usuario', (idError, idResult) => {
+          if (idError) {
+            return db.rollback(() => {
+              console.error('Error obteniendo id de usuario:', idError);
+              res.status(500).json({ error: 'No se pudo agregar la persona' });
+            });
+          }
 
-        const visitas = servicios.map((idServicio) => [
-          userResult.insertId,
-          idServicio,
-          `${anio}-01-01 00:00:00`,
-          anio,
-          semana,
-        ]);
+          const idUsuario = idResult[0].id_usuario;
 
-        db.query(
-          'INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES ?',
-          [visitas],
-          (visitError) => {
-            if (visitError) {
-              return db.rollback(() => {
-                console.error('Error insertando servicios de la persona:', visitError);
-                res.status(500).json({ error: 'No se pudieron guardar los servicios de la persona' });
-              });
-            }
-
-            db.commit((commitError) => {
+          if (servicios.length === 0) {
+            return db.commit((commitError) => {
               if (commitError) {
                 return db.rollback(() => res.status(500).json({ error: 'No se pudo guardar la persona' }));
               }
-              res.status(201).json({ message: 'Persona y servicios agregados correctamente', id_usuario: userResult.insertId });
+              res.status(201).json({ message: 'Persona agregada correctamente', id_usuario: idUsuario });
             });
-          },
-        );
+          }
+
+          let pendientes = servicios.length;
+          let huboError = false;
+
+          servicios.forEach((idServicio) => {
+            db.query(
+              'CALL sp_registrar_visita(?, ?, NOW(), ?, ?)',
+              [idUsuario, idServicio, anio, semana],
+              (visitError) => {
+                if (huboError) return;
+
+                if (visitError) {
+                  huboError = true;
+                  return db.rollback(() => {
+                    console.error('Error insertando servicios de la persona:', visitError);
+                    res.status(500).json({ error: 'No se pudieron guardar los servicios de la persona' });
+                  });
+                }
+
+                pendientes -= 1;
+                if (pendientes === 0) {
+                  db.commit((commitError) => {
+                    if (commitError) {
+                      return db.rollback(() => res.status(500).json({ error: 'No se pudo guardar la persona' }));
+                    }
+                    res.status(201).json({
+                      message: 'Persona y servicios agregados correctamente',
+                      id_usuario: idUsuario,
+                    });
+                  });
+                }
+              },
+            );
+          });
+        });
       },
     );
-  });
-});
-
-app.post('/api/productos', (req, res) => {
-  const nombre = String(req.body.nombre || '').trim();
-  const descripcion = String(req.body.descripcion || '').trim();
-  const precio = Number(req.body.precio);
-  const cantidad = Number(req.body.cantidad);
-
-  if (!nombre || !Number.isFinite(precio) || precio < 0 || !isValidQuantity(cantidad)) {
-    return res.status(400).json({
-      error: 'Nombre, precio y cantidad son obligatorios y deben tener valores válidos',
-    });
-  }
-
-  db.query(
-    'CALL sp_insertar_producto(?, ?, ?, ?)',
-    [nombre, precio, descripcion, cantidad],
-    (err) => {
-      if (err) {
-        console.error('Error insertando producto:', err);
-        return res.status(500).json({ error: 'No se pudo agregar el producto' });
-      }
-
-      res.status(201).json({ message: 'Producto agregado correctamente' });
-    },
-  );
-});
-
-app.patch('/api/productos/:id/cantidad', (req, res) => {
-  const { id } = req.params;
-  const cantidad = Number(req.body.cantidad);
-
-  if (!isPositiveId(id) || !isValidQuantity(cantidad)) {
-    return res.status(400).json({ error: 'El ID y la cantidad deben ser valores válidos' });
-  }
-
-  db.query('CALL sp_actualizar_cantidad_producto(?, ?)', [Number(id), cantidad], (err) => {
-    if (err) {
-      console.error('Error actualizando cantidad:', err);
-      return res.status(500).json({ error: 'No se pudo actualizar la cantidad' });
-    }
-
-    res.json({ message: 'Cantidad actualizada correctamente' });
-  });
-});
-
-app.delete('/api/productos/:id', (req, res) => {
-  const { id } = req.params;
-
-  if (!isPositiveId(id)) {
-    return res.status(400).json({ error: 'El ID del producto no es válido' });
-  }
-
-  db.query('CALL sp_eliminar_producto(?)', [Number(id)], (err) => {
-    if (err) {
-      console.error('Error eliminando producto:', err);
-      return res.status(500).json({ error: 'No se pudo eliminar el producto' });
-    }
-
-    res.json({ message: 'Producto eliminado correctamente' });
   });
 });

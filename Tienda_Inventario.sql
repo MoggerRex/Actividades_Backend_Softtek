@@ -1,16 +1,22 @@
 -- ============================================================
--- BASE DE DATOS: TIENDA + REGISTRO DE VISITAS
+-- BASE DE DATOS: TIENDA_INVENTARIO
+-- Inventario de productos + Registro de usuarios (con área/rol) y visitas a servicios
 -- ============================================================
 
--- 1. Creación de la base de datos limpia
+
+-- ============================================================
+-- 0. CREACIÓN DE LA BASE DE DATOS
+-- ============================================================
 DROP DATABASE IF EXISTS tienda_inventario;
 CREATE DATABASE tienda_inventario;
 USE tienda_inventario;
 
+
 -- ============================================================
--- PARTE 1: INVENTARIO
+-- PARTE 1: INVENTARIO DE PRODUCTOS
 -- ============================================================
 
+-- 1.1 Tabla de productos
 CREATE TABLE productos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
@@ -19,6 +25,7 @@ CREATE TABLE productos (
     cantidad INT NOT NULL DEFAULT 0
 );
 
+-- 1.2 Tabla de alertas de stock (se llena sola vía trigger, ver 1.5)
 CREATE TABLE alertas_stock (
     id INT AUTO_INCREMENT PRIMARY KEY,
     producto_id INT,
@@ -27,6 +34,7 @@ CREATE TABLE alertas_stock (
     FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
 );
 
+-- 1.3 Carga inicial de 30 productos
 INSERT INTO productos (nombre, precio, descripcion, cantidad) VALUES
 ('Teclado Mecánico RGB', 850.00, 'Teclado gamer con switches azules y retroiluminación', 12),
 ('Mouse Inalámbrico Ergonómico', 350.00, 'Mouse óptico recargable de 2.4GHz', 8),
@@ -59,8 +67,9 @@ INSERT INTO productos (nombre, precio, descripcion, cantidad) VALUES
 ('Bocina Bluetooth Portátil', 480.00, 'Resistente al agua IPX5', 4),
 ('Teclado Numérico USB', 140.00, 'Teclado externo para laptop', 16);
 
+-- 1.4 Vista: productos caros (>= $100) con stock crítico (<= 10)
 CREATE VIEW vista_alertas_inventario AS
-SELECT 
+SELECT
     id,
     nombre,
     precio,
@@ -69,6 +78,7 @@ SELECT
 FROM productos
 WHERE precio >= 100.00 AND cantidad <= 10;
 
+-- 1.5 Trigger: genera una alerta automática cuando el stock baja a 10 o menos
 DELIMITER //
 CREATE TRIGGER trigger_verificar_stock_bajo
 AFTER UPDATE ON productos
@@ -76,15 +86,64 @@ FOR EACH ROW
 BEGIN
     IF NEW.precio >= 100.00 AND NEW.cantidad <= 10 THEN
         INSERT INTO alertas_stock (producto_id, mensaje)
-        VALUES (NEW.id, CONCAT('AVISO: El producto "', NEW.nombre, '" (Precio: $', NEW.precio, ') tiene un stock crítico de ', NEW.cantidad, ' unidades.'));
+        VALUES (
+            NEW.id,
+            CONCAT('AVISO: El producto "', NEW.nombre, '" (Precio: $', NEW.precio, ') tiene un stock crítico de ', NEW.cantidad, ' unidades.')
+        );
     END IF;
 END//
 DELIMITER ;
 
+-- 1.6 Procedimientos de productos
+--     Coinciden EXACTAMENTE con los CALL que ya tiene tu server.js:
+--     el orden de los parámetros es el mismo que mandas desde Node.
+
+DELIMITER //
+
+-- Usado en: app.post('/api/productos', ...)
+--   db.query('CALL sp_insertar_producto(?, ?, ?, ?)', [nombre, precio, descripcion, cantidad], ...)
+CREATE PROCEDURE sp_insertar_producto(
+    IN p_nombre VARCHAR(100),
+    IN p_precio DECIMAL(10, 2),
+    IN p_descripcion TEXT,
+    IN p_cantidad INT
+)
+BEGIN
+    INSERT INTO productos (nombre, precio, descripcion, cantidad)
+    VALUES (p_nombre, p_precio, p_descripcion, p_cantidad);
+END //
+
+-- Usado en: app.patch('/api/productos/:id/cantidad', ...)
+--   db.query('CALL sp_actualizar_cantidad_producto(?, ?)', [id, cantidad], ...)
+CREATE PROCEDURE sp_actualizar_cantidad_producto(
+    IN p_id INT,
+    IN p_nueva_cantidad INT
+)
+BEGIN
+    UPDATE productos
+    SET cantidad = p_nueva_cantidad
+    WHERE id = p_id;
+END //
+
+-- Usado en: app.delete('/api/productos/:id', ...)
+--   db.query('CALL sp_eliminar_producto(?)', [id], ...)
+CREATE PROCEDURE sp_eliminar_producto(
+    IN p_id INT
+)
+BEGIN
+    DELETE FROM productos WHERE id = p_id;
+END //
+
+DELIMITER ;
+
+
 -- ============================================================
--- PARTE 2: REGISTRO DE USUARIOS Y VISITAS
+-- PARTE 2: USUARIOS, SERVICIOS Y VISITAS
 -- ============================================================
 
+-- 2.1 Tabla de usuarios
+--     Incluye area (departamento) y rol (puesto), que se
+--     llenan en la Parte 3 después de cargar a los 200 usuarios.
 CREATE TABLE usuarios (
     id_usuario INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
@@ -96,6 +155,7 @@ CREATE TABLE usuarios (
     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 2.2 Tabla de servicios (Masajes, Rehabilitación)
 CREATE TABLE servicios (
     id_servicio INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
@@ -103,6 +163,11 @@ CREATE TABLE servicios (
     activo BOOLEAN DEFAULT TRUE
 );
 
+-- 2.3 Tabla de visitas
+--     anio y semana se guardan explícitamente en cada INSERT para
+--     poder agrupar/filtrar reportes por semana sin recalcular nada.
+--     El UNIQUE evita que un usuario registre el mismo servicio
+--     dos veces en la misma semana.
 CREATE TABLE visitas (
     id_visita INT AUTO_INCREMENT PRIMARY KEY,
     id_usuario INT NOT NULL,
@@ -112,30 +177,57 @@ CREATE TABLE visitas (
     semana INT NOT NULL,
     FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
     FOREIGN KEY (id_servicio) REFERENCES servicios(id_servicio) ON DELETE CASCADE,
-    
-    -- CONDICIÓN: Evita que el mismo usuario registre el mismo servicio 2 veces en la misma semana
     UNIQUE (id_usuario, id_servicio, anio, semana)
 );
 
+-- 2.4 Carga de los 2 servicios
 INSERT INTO servicios (nombre, descripcion) VALUES
 ('Masajes', 'Sesión de masajes terapéuticos'),
 ('Rehabilitación', 'Sesión de rehabilitación física');
 
-UPDATE servicios
-SET nombre = CASE id_servicio
-    WHEN 1 THEN 'Masajes'
-    WHEN 2 THEN 'Rehabilitación'
-END,
-descripcion = CASE id_servicio
-    WHEN 1 THEN 'Sesión de masajes terapéuticos'
-    WHEN 2 THEN 'Sesión de rehabilitación física'
-END
-WHERE id_servicio IN (1, 2);
+-- 2.5 Procedimientos de usuarios y visitas
+--     Estos son NUEVOS: hoy tu server.js hace el INSERT directo en la
+--     ruta POST /api/usuarios-servicios. Aquí tienes el equivalente en
+--     procedure; más abajo (comentario) te explico cómo cambiar el
+--     server.js para usarlos en vez del INSERT directo.
+
+DELIMITER //
+
+CREATE PROCEDURE sp_agregar_usuario(
+    IN p_nombre VARCHAR(100),
+    IN p_apellido VARCHAR(100),
+    IN p_correo VARCHAR(150),
+    IN p_telefono VARCHAR(20),
+    IN p_area VARCHAR(50),
+    IN p_rol VARCHAR(100)
+)
+BEGIN
+	INSERT INTO usuarios (nombre, apellido, correo, telefono, area, rol)
+    VALUES (p_nombre, p_apellido, p_correo, p_telefono, p_area, p_rol);
+    -- El id insertado se recupera después con SELECT LAST_INSERT_ID();
+    -- (ver ejemplo de uso en el server.js más abajo)
+END //
+
+CREATE PROCEDURE sp_registrar_visita(
+    IN p_id_usuario INT,
+    IN p_id_servicio INT,
+    IN p_fecha_visita DATETIME,
+    IN p_anio INT,
+    IN p_semana INT
+)
+BEGIN
+    INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana)
+    VALUES (p_id_usuario, p_id_servicio, p_fecha_visita, p_anio, p_semana);
+END //
+
+DELIMITER ;
+
 
 -- ============================================================
--- PARTE 3: DATOS DE PRUEBA (200 USUARIOS REALES Y ESTÁTICOS)
+-- PARTE 3: DATOS DE PRUEBA (200 usuarios + visitas de ejemplo)
 -- ============================================================
 
+-- 3.1 Primeros 50 usuarios (base)
 INSERT INTO usuarios (nombre, apellido, correo, telefono) VALUES
 ('Luis', 'Hernández', 'luis.h@example.com', '5550000001'),
 ('Ana', 'García', 'ana.g@example.com', '5550000002'),
@@ -188,45 +280,49 @@ INSERT INTO usuarios (nombre, apellido, correo, telefono) VALUES
 ('Ramón', 'Valdez', 'ramon.v@example.com', '5550000049'),
 ('Isabel', 'Cabrera', 'isabel.c@example.com', '5550000050');
 
--- Generamos los siguientes 150 combinando los mismos nombres y apellidos base de los primeros 50 para completar los 200
+-- 3.2 Siguientes 150 usuarios, generados combinando nombres/apellidos
+--     de los 50 base, hasta completar los 200
 INSERT INTO usuarios (nombre, apellido, correo, telefono)
-SELECT 
-    u1.nombre, 
-    u2.apellido, 
-    CONCAT(LOWER(u1.nombre), '.', LOWER(u2.apellido), u1.id_usuario, '@example.com'), 
+SELECT
+    u1.nombre,
+    u2.apellido,
+    CONCAT(LOWER(u1.nombre), '.', LOWER(u2.apellido), u1.id_usuario, '@example.com'),
     CONCAT('5551', LPAD(u1.id_usuario * u2.id_usuario, 5, '0'))
 FROM usuarios u1
 JOIN usuarios u2 ON u1.id_usuario != u2.id_usuario
 LIMIT 150;
 
--- MS--
+-- 3.3 Asignar área y rol a los 200 usuarios (aleatorio pero coherente:
+--     el rol siempre corresponde al área que le tocó a cada quien)
 SET SQL_SAFE_UPDATES = 0;
--- Asigna un área/rol de trabajo aleatoria a los 200 trabajadores
+
+-- Área aleatoria por usuario
 UPDATE usuarios
 SET area = ELT(FLOOR(1 + RAND() * 6), 'RH', 'IT', 'Marketing', 'Ventas', 'Finanzas', 'Operaciones');
 
--- Asigna un puesto coherente con el área de cada trabajador
+-- Rol aleatorio, pero dentro de las opciones válidas para su área
 UPDATE usuarios
 SET rol = CASE area
-  WHEN 'RH' THEN ELT(FLOOR(1 + RAND() * 4),
-    'Reclutador', 'Generalista de RH', 'Coordinador de Nómina', 'Especialista en Capacitación')
-  WHEN 'IT' THEN ELT(FLOOR(1 + RAND() * 4),
-    'Desarrollador', 'Soporte Técnico', 'Administrador de Redes', 'Analista de Sistemas')
-  WHEN 'Marketing' THEN ELT(FLOOR(1 + RAND() * 4),
-    'Community Manager', 'Diseñador Gráfico', 'Analista de Marketing', 'Ejecutivo de Marca')
-  WHEN 'Ventas' THEN ELT(FLOOR(1 + RAND() * 4),
-    'Ejecutivo de Ventas', 'Representante Comercial', 'Coordinador de Cuentas', 'Gerente de Ventas')
-  WHEN 'Finanzas' THEN ELT(FLOOR(1 + RAND() * 4),
-    'Contador', 'Analista Financiero', 'Auxiliar Contable', 'Tesorero')
-  WHEN 'Operaciones' THEN ELT(FLOOR(1 + RAND() * 4),
-    'Supervisor de Operaciones', 'Analista de Procesos', 'Coordinador Logístico', 'Jefe de Planta')
+    WHEN 'RH' THEN ELT(FLOOR(1 + RAND() * 4),
+        'Reclutador', 'Generalista de RH', 'Coordinador de Nómina', 'Especialista en Capacitación')
+    WHEN 'IT' THEN ELT(FLOOR(1 + RAND() * 4),
+        'Desarrollador', 'Soporte Técnico', 'Administrador de Redes', 'Analista de Sistemas')
+    WHEN 'Marketing' THEN ELT(FLOOR(1 + RAND() * 4),
+        'Community Manager', 'Diseñador Gráfico', 'Analista de Marketing', 'Ejecutivo de Marca')
+    WHEN 'Ventas' THEN ELT(FLOOR(1 + RAND() * 4),
+        'Ejecutivo de Ventas', 'Representante Comercial', 'Coordinador de Cuentas', 'Gerente de Ventas')
+    WHEN 'Finanzas' THEN ELT(FLOOR(1 + RAND() * 4),
+        'Contador', 'Analista Financiero', 'Auxiliar Contable', 'Tesorero')
+    WHEN 'Operaciones' THEN ELT(FLOOR(1 + RAND() * 4),
+        'Supervisor de Operaciones', 'Analista de Procesos', 'Coordinador Logístico', 'Jefe de Planta')
 END;
 
 SET SQL_SAFE_UPDATES = 1;
 
--- Registros de Visitas para la Semana 38, 2026 (Datos estáticos y directos)
-INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
+-- 3.4 Visitas de ejemplo para la Semana 38, 2026
+
 -- Usuarios que usaron AMBOS servicios
+INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 (1, 1, '2026-09-14 10:00:00', 2026, 38), (1, 2, '2026-09-15 11:00:00', 2026, 38),
 (4, 1, '2026-09-16 10:00:00', 2026, 38), (4, 2, '2026-09-17 10:00:00', 2026, 38),
 (10, 1, '2026-09-14 09:00:00', 2026, 38), (10, 2, '2026-09-18 14:00:00', 2026, 38),
@@ -236,9 +332,10 @@ INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 (55, 1, '2026-09-14 13:00:00', 2026, 38), (55, 2, '2026-09-15 15:00:00', 2026, 38),
 (70, 1, '2026-09-16 09:45:00', 2026, 38), (70, 2, '2026-09-17 09:45:00', 2026, 38),
 (85, 1, '2026-09-14 10:30:00', 2026, 38), (85, 2, '2026-09-16 10:30:00', 2026, 38),
-(100, 1, '2026-09-15 14:20:00', 2026, 38), (100, 2, '2026-09-18 14:20:00', 2026, 38),
+(100, 1, '2026-09-15 14:20:00', 2026, 38), (100, 2, '2026-09-18 14:20:00', 2026, 38);
 
--- Usuarios que usaron SOLO Masajes (1)
+-- Usuarios que usaron SOLO Masajes (servicio 1)
+INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 (2, 1, '2026-09-15 09:00:00', 2026, 38),
 (5, 1, '2026-09-14 11:00:00', 2026, 38),
 (8, 1, '2026-09-16 14:00:00', 2026, 38),
@@ -248,9 +345,10 @@ INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 (30, 1, '2026-09-15 12:45:00', 2026, 38),
 (45, 1, '2026-09-16 09:15:00', 2026, 38),
 (60, 1, '2026-09-17 16:20:00', 2026, 38),
-(90, 1, '2026-09-18 11:10:00', 2026, 38),
+(90, 1, '2026-09-18 11:10:00', 2026, 38);
 
--- Usuarios que usaron SOLO Rehabilitación (2)
+-- Usuarios que usaron SOLO Rehabilitación (servicio 2)
+INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 (3, 2, '2026-09-16 13:00:00', 2026, 38),
 (6, 2, '2026-09-14 15:30:00', 2026, 38),
 (9, 2, '2026-09-15 08:45:00', 2026, 38),
@@ -262,12 +360,44 @@ INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 (75, 2, '2026-09-17 13:25:00', 2026, 38),
 (120, 2, '2026-09-18 08:15:00', 2026, 38);
 
+
 -- ============================================================
--- PARTE 4: CONSULTAS (PRUEBA FINAL)
+-- PARTE 4: PRUEBA DEL TRIGGER
 -- ============================================================
 
--- Comprobar si el trigger funciona restando piezas al ID 1
+-- Baja el stock del producto 1 a 8 piezas.
+-- Como su precio es >= $100, dispara el trigger y crea un registro
+-- en alertas_stock automáticamente.
 UPDATE productos SET cantidad = 8 WHERE id = 1;
 
--- Verificar productos
-SELECT * FROM productos;
+
+-- ============================================================
+-- PARTE 5: EJEMPLOS DE CÓMO SE MANDAN A LLAMAR LOS PROCEDURES
+-- ============================================================
+
+-- Productos (ya los usa tu server.js tal cual)
+-- CALL sp_insertar_producto('Silla Gamer', 3200.00, 'Silla reclinable', 15);
+-- CALL sp_actualizar_cantidad_producto(1, 20);
+-- CALL sp_eliminar_producto(31);
+
+-- Usuarios y visitas (nuevos, ver nota debajo sobre el server.js)
+-- CALL sp_agregar_usuario('Pepe', 'Pérez', 'pepe@correo.com', '8110000000');
+-- SELECT LAST_INSERT_ID() AS id_usuario;  -- Recupera el id recién creado
+-- CALL sp_registrar_visita(1, 1, '2026-09-20 10:00:00', 2026, 38);
+
+
+-- ============================================================
+-- PARTE 6: CONSULTAS (todo lo que puedes ir a ver, junto aquí)
+-- ============================================================
+
+-- ---------- Inventario ----------
+SELECT * FROM productos;                  -- Todos los productos
+SELECT * FROM alertas_stock;              -- Alertas generadas por el trigger
+SELECT * FROM vista_alertas_inventario;   -- Vista: productos caros con stock crítico
+
+-- ---------- Usuarios y servicios ----------
+SELECT * FROM usuarios;                          -- Los 200 usuarios (con área y rol)
+SELECT COUNT(*) AS total_usuarios FROM usuarios;  -- Verificar que sí sean 200
+SELECT area, COUNT(*) AS total FROM usuarios GROUP BY area;  -- Cuántos usuarios por área
+SELECT * FROM servicios;                          -- Los servicios disponibles (Masajes, Rehabilitación)
+SELECT * FROM visitas;                            -- Todas las visitas registradas

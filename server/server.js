@@ -30,6 +30,7 @@ db.connect((err) => {
 
 const isPositiveId = (value) => Number.isInteger(Number(value)) && Number(value) > 0;
 const isValidQuantity = (value) => Number.isInteger(Number(value)) && Number(value) >= 0;
+const AREA_OPTIONS = ['RH', 'IT', 'Marketing', 'Ventas', 'Finanzas', 'Operaciones'];
 
 app.get('/api/productos', (req, res) => {
   const sql = 'SELECT * FROM productos ORDER BY id ASC';
@@ -112,19 +113,19 @@ app.get('/api/servicios-resumen', (req, res) => {
   const personasSql = `
     SELECT
       u.id_usuario,
-      CONCAT(u.nombre, ' ', COALESCE(u.apellido, '')) AS persona,
+      TRIM(CONCAT(u.nombre, ' ', COALESCE(u.apellido, ''))) AS persona,
       u.correo,
       u.telefono,
       COALESCE(
-      GROUP_CONCAT(
-        DISTINCT CASE s.id_servicio
-          WHEN 1 THEN 'Masajes'
-          WHEN 2 THEN 'Rehabilitación'
-          ELSE s.nombre
-        END
-        ORDER BY s.id_servicio SEPARATOR ', '
-      ),
-      'Ningún servicio'
+        GROUP_CONCAT(
+          DISTINCT CASE s.id_servicio
+            WHEN 1 THEN 'Masajes'
+            WHEN 2 THEN 'Rehabilitación'
+            ELSE s.nombre
+          END
+          ORDER BY s.id_servicio SEPARATOR ', '
+        ),
+        'Ningún servicio'
       ) AS servicios,
       COUNT(DISTINCT v.id_servicio) AS servicios_utilizados
     FROM usuarios u
@@ -163,6 +164,110 @@ app.get('/api/servicios-resumen', (req, res) => {
           servicios: serviceRows,
           personas: peopleRows,
         });
+      });
+    });
+  });
+});
+
+app.get('/api/servicios-ranking', (req, res) => {
+  const porPersonaSql = `
+    SELECT servicio, id_usuario, persona, area, visitas
+    FROM (
+      SELECT
+        CASE s.id_servicio
+          WHEN 1 THEN 'Masajes'
+          WHEN 2 THEN 'Rehabilitación'
+          ELSE s.nombre
+        END AS servicio,
+        u.id_usuario,
+        TRIM(CONCAT(u.nombre, ' ', COALESCE(u.apellido, ''))) AS persona,
+        COALESCE(u.area, 'Sin área') AS area,
+        COUNT(*) AS visitas,
+        ROW_NUMBER() OVER (
+          PARTITION BY v.id_servicio
+          ORDER BY COUNT(*) DESC, u.id_usuario ASC
+        ) AS posicion
+      FROM visitas v
+      INNER JOIN usuarios u ON u.id_usuario = v.id_usuario
+      INNER JOIN servicios s ON s.id_servicio = v.id_servicio
+      WHERE s.activo = TRUE
+      GROUP BY v.id_servicio, s.nombre, u.id_usuario, u.nombre, u.apellido, u.area
+    ) AS ranking_personas
+    WHERE posicion <= 5
+    ORDER BY servicio, posicion
+  `;
+
+  const porSemanaSql = `
+    SELECT servicio, anio, semana, visitas
+    FROM (
+      SELECT
+        CASE s.id_servicio
+          WHEN 1 THEN 'Masajes'
+          WHEN 2 THEN 'Rehabilitación'
+          ELSE s.nombre
+        END AS servicio,
+        v.id_servicio,
+        v.anio,
+        v.semana,
+        COUNT(*) AS visitas,
+        ROW_NUMBER() OVER (
+          PARTITION BY v.id_servicio
+          ORDER BY COUNT(*) DESC, v.anio DESC, v.semana DESC
+        ) AS posicion
+      FROM visitas v
+      INNER JOIN servicios s ON s.id_servicio = v.id_servicio
+      WHERE s.activo = TRUE
+      GROUP BY v.id_servicio, s.nombre, v.anio, v.semana
+    ) AS ranking_semanas
+    WHERE posicion <= 5
+    ORDER BY servicio, posicion
+  `;
+
+  const porAreaSql = `
+    SELECT servicio, area, visitas
+    FROM (
+      SELECT
+        CASE s.id_servicio
+          WHEN 1 THEN 'Masajes'
+          WHEN 2 THEN 'Rehabilitación'
+          ELSE s.nombre
+        END AS servicio,
+        v.id_servicio,
+        COALESCE(u.area, 'Sin área') AS area,
+        COUNT(*) AS visitas,
+        ROW_NUMBER() OVER (
+          PARTITION BY v.id_servicio
+          ORDER BY COUNT(*) DESC, COALESCE(u.area, 'Sin área') ASC
+        ) AS posicion
+      FROM visitas v
+      INNER JOIN usuarios u ON u.id_usuario = v.id_usuario
+      INNER JOIN servicios s ON s.id_servicio = v.id_servicio
+      WHERE s.activo = TRUE
+      GROUP BY v.id_servicio, s.nombre, u.area
+    ) AS ranking_areas
+    WHERE posicion <= 5
+    ORDER BY servicio, posicion
+  `;
+
+  db.query(porPersonaSql, (peopleError, porPersona) => {
+    if (peopleError) {
+      console.error('Error consultando top de visitantes:', peopleError);
+      return res.status(500).json({ error: 'No se pudo consultar el top de visitantes' });
+    }
+
+    db.query(porSemanaSql, (weekError, porSemana) => {
+      if (weekError) {
+        console.error('Error consultando top de semanas:', weekError);
+        return res.status(500).json({ error: 'No se pudo consultar el top de semanas' });
+      }
+
+      db.query(porAreaSql, (areaError, porArea) => {
+        if (areaError) {
+          console.error('Error consultando top de áreas:', areaError);
+          return res.status(500).json({ error: 'No se pudo consultar el top de áreas' });
+        }
+
+        res.json({ porPersona, porSemana, porArea });
       });
     });
   });

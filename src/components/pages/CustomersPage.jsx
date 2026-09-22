@@ -53,7 +53,6 @@ function RankCard({ eyebrow, client, variant }) {
         ? 'bg-gradient-to-br from-white to-amber-50/70 shadow-amber-950/5 dark:from-[#101010] dark:to-[#160e02]'
         : 'bg-gradient-to-br from-white to-[#faeef2] shadow-rose-950/5 dark:from-[#101010] dark:to-[#16060d]'
     }`}>
-      <div className={`absolute -right-7 -top-7 size-28 rounded-full ${isRisk ? 'bg-amber-100/60 dark:bg-amber-500/20' : 'bg-rose-100/70 dark:bg-rose-500/20'}`} />
       <div className="relative">
         <div className="mb-5 flex items-center justify-between gap-3">
           <p className={`text-[11px] font-bold uppercase tracking-[0.16em] ${isRisk ? 'text-amber-700/70 dark:text-amber-300/70' : 'text-[#7a2746]/70 dark:text-rose-300/70'}`}>{eyebrow}</p>
@@ -96,6 +95,17 @@ function CustomersPage() {
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ id_usuario: '', monto_total: '' })
+
+  useEffect(() => {
+    if (!showModal) return undefined
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [showModal])
 
   const loadCustomers = useCallback(async () => {
     setLoading(true)
@@ -188,9 +198,6 @@ function CustomersPage() {
           <button className="h-10 rounded-xl border border-rose-200 bg-white px-4 text-sm font-semibold text-[#7a2746] transition hover:bg-rose-50 disabled:opacity-60 dark:border-rose-400/20 dark:bg-[#101010] dark:text-rose-200 dark:hover:bg-rose-500/10" type="button" onClick={loadCustomers} disabled={loading}>
             {loading ? 'Actualizando…' : 'Actualizar'}
           </button>
-          <button className="h-10 rounded-xl bg-[#be185d] px-4 text-sm font-semibold text-white shadow-sm shadow-rose-950/30 transition hover:bg-[#9d174d]" type="button" onClick={() => { setError(''); setMessage(''); setShowModal(true) }}>
-            Registrar pedido
-          </button>
         </div>
       </header>
 
@@ -270,7 +277,7 @@ function CustomersPage() {
           <table className="w-full min-w-[900px] border-collapse text-left text-sm">
             <thead className="bg-[#fbf5f7] dark:bg-[#0b0b0b]">
               <tr className="border-b border-slate-100 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:border-white/5 dark:text-slate-500">
-                <th className="px-5 py-3">Cliente</th><th className="px-5 py-3">Estatus</th><th className="px-5 py-3 text-right">Total gastado</th><th className="px-5 py-3 text-center">Pedidos</th><th className="px-5 py-3">Último pedido</th><th className="px-5 py-3 text-center">Últimos 90 días</th>
+                <th className="px-5 py-3">Cliente</th><th className="px-5 py-3">Tipo</th><th className="px-5 py-3 text-right">Total gastado</th><th className="px-5 py-3 text-center">Pedidos</th><th className="px-5 py-3">Último pedido</th><th className="px-5 py-3 text-center">Últimos 90 días</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-rose-50 dark:divide-white/5">

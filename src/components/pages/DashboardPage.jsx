@@ -78,6 +78,17 @@ function DashboardPage() {
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(emptyPerson)
 
+  useEffect(() => {
+    if (!showModal) return undefined
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [showModal])
+
   const loadServices = useCallback(async () => {
     setLoading(true)
 

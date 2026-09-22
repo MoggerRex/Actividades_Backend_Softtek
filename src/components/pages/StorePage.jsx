@@ -41,6 +41,17 @@ function StorePage() {
   const [deleting, setDeleting] = useState(false)
   const [form, setForm] = useState(emptyProduct)
 
+  useEffect(() => {
+    if (!modal && !productToDelete) return undefined
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [modal, productToDelete])
+
   const cargarDatos = useCallback(async () => {
     try {
       const [productosData, alertasData] = await Promise.all([

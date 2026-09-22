@@ -1,0 +1,12 @@
+Empresa simulada que vende cualquier cosa, el front muestra lista de usuarios, que tipo de cliente es cada usuario, cuanto a gastado cada usuario, sus pedidos, en que fecha (el mes), graficas que muestren el total de clientes con %, mostrar los requisitos que si cumple y no cumple para ser uno de los 3 tipos
+TABLAS:
+
+-Clientes (Usuarios, Ya existe)
+-Pedidos
+-Productos (Ya existe)
+
+REQUISITOS:
+
+-Cliente En riesgo: Sin pedidos en los últimos 90 días, sus gastos son menos de 5000 pesos.
+-Cliente Alto nivel: 10 pedidos en los últimos 90 días, sus gastos son >= 15000, ultimos dos meses debe tener minimo 4 pedidos en cada uno de esos dos meses.
+-Cliente Normal: No cumple con la totalidad de los requisito para ser un cliente en riesgo o de alto nivel.

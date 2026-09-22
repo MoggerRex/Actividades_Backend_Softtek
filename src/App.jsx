@@ -12,6 +12,7 @@ const getPageFromLocation = () => {
 
 function App() {
   const [activePage, setActivePage] = useState(getPageFromLocation)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const isDashboard = activePage === 'dashboard'
   const isCustomers = activePage === 'customers'
 
@@ -44,9 +45,11 @@ function App() {
       <Sidebar
         activePage={activePage}
         onSelectPage={selectPage}
+        isOpen={isSidebarOpen}
+        onToggle={() => setIsSidebarOpen((isOpen) => !isOpen)}
       />
 
-      <div className="min-h-screen pl-[76px] md:pl-60">
+      <div className={`min-h-screen transition-[padding] ${isSidebarOpen ? 'pl-[92px] md:pl-[260px]' : 'pl-[72px] md:pl-[84px]'}`}>
         {activePage === 'dashboard' && <DashboardPage />}
         {activePage === 'store' && <StorePage />}
         {activePage === 'customers' && <CustomersPage />}

@@ -1,1 +1,40 @@
+@import "@fontsource-variable/urbanist";
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Urbanist Variable", Urbanist, ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --empty-chart: #e4e9e6;
+  --empty-chart-wine: #eee3e7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --empty-chart: #252525;
+    --empty-chart-wine: #252525;
+  }
+}
+
+@layer base {
+  body {
+    @apply m-0 min-w-80 bg-[#f4f7fb] font-sans text-slate-800 antialiased transition-colors dark:bg-[#1a1a1a] dark:text-slate-100;
+  }
+
+  button,
+  input,
+  textarea {
+    font: inherit;
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  ::selection {
+    @apply bg-blue-200 text-blue-950 dark:bg-blue-600 dark:text-white;
+  }
+}

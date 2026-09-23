@@ -360,9 +360,77 @@ INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 (75, 2, '2026-09-17 13:25:00', 2026, 38),
 (120, 2, '2026-09-18 08:15:00', 2026, 38);
 
+-- ============================================================
+-- PARTE 4: SECCION DE CLIENTES
+-- ============================================================
+-- Tabla de pedidos --
+
+CREATE TABLE pedidos (
+    id_pedidos INT AUTO_INCREMENT PRIMARY KEY,
+    id_usuario INT NOT NULL,
+    fecha_pedido TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    monto_total DECIMAL(10, 2) NOT NULL,
+    FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE
+);
+
+CREATE VIEW metricas_de_clientes AS
+SELECT 
+    u.id_usuario,
+    u.nombre,
+    u.apellido,
+    COUNT(p.id_pedidos) AS total_compras,
+    COALESCE(SUM(p.monto_total), 0) AS total_gasto,
+    MAX(p.fecha_pedido) AS ultima_fecha_pedido,
+    COUNT(CASE
+		WHEN p.fecha_pedido >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+		THEN 1
+    END) AS pedidos_ultimos_90_dias,
+    
+    COUNT(CASE
+		WHEN p.fecha_pedido >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+		THEN 1
+    END) AS pedidos_mes_actual,
+    
+    COUNT(CASE
+		WHEN p.fecha_pedido >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
+		AND p.fecha_pedido < DATE_FORMAT(CURDATE(), '%Y-%m-01')
+		THEN 1
+    END) AS pedidos_mes_anterior
+FROM usuarios u
+LEFT JOIN pedidos p ON u.id_usuario = p.id_usuario
+GROUP BY u.id_usuario, u.nombre, u.apellido;
+
+DROP VIEW metricas_de_clientes;
+DROP TABLE pedidos;
+
+CREATE VIEW estatus_clientes AS
+SELECT
+id_usuario,
+nombre,
+apellido,
+total_gasto,
+total_compras,
+ultima_fecha_pedido,
+CASE         
+	-- Regla 1: Cliente En Riesgo
+	WHEN pedidos_ultimos_90_dias = 0 
+		and total_gasto <= 5000
+		THEN 'Cliente en riesgo'
+
+	WHEN pedidos_ultimos_90_dias >= 10 
+		and total_gasto >= 15000 
+		and pedidos_mes_actual >= 4 
+		and pedidos_mes_anterior >= 4
+		THEN 'Cliente alto nivel'
+
+	ELSE 'Cliente normal'
+END AS tipo_cliente
+FROM metricas_de_clientes;
+
+DROP VIEW estatus_clientes;
 
 -- ============================================================
--- PARTE 4: PRUEBA DEL TRIGGER
+-- PARTE 5: PRUEBA DEL TRIGGER
 -- ============================================================
 
 -- Baja el stock del producto 1 a 8 piezas.
@@ -371,8 +439,9 @@ INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 UPDATE productos SET cantidad = 8 WHERE id = 1;
 
 
+
 -- ============================================================
--- PARTE 5: EJEMPLOS DE CÓMO SE MANDAN A LLAMAR LOS PROCEDURES
+-- PARTE 6: EJEMPLOS DE CÓMO SE MANDAN A LLAMAR LOS PROCEDURES
 -- ============================================================
 
 -- Productos (ya los usa tu server.js tal cual)
@@ -387,8 +456,65 @@ UPDATE productos SET cantidad = 8 WHERE id = 1;
 
 
 -- ============================================================
--- PARTE 6: CONSULTAS (todo lo que puedes ir a ver, junto aquí)
+-- PARTE 7: CONSULTAS (todo lo que puedes ir a ver, junto aquí)
 -- ============================================================
+
+-- ============================================================
+-- 1. USUARIO 1: CLIENTE DE ALTO NIVEL (id_usuario = 1)
+-- Cumple:
+-- - 10 pedidos en los últimos 90 días (agosto y septiembre 2026)
+-- - Total gastado: $18,000 (>= $15,000)
+-- - 5 pedidos en agosto y 5 en septiembre (mínimo 4 por mes)
+-- ============================================================
+INSERT INTO pedidos (id_usuario, fecha_pedido, monto_total) VALUES
+(5, '2026-08-02 10:00:00', 1800.00),
+(5, '2026-08-08 14:30:00', 1800.00),
+(5, '2026-08-15 11:15:00', 1800.00),
+(5, '2026-08-20 16:45:00', 1800.00),
+(5, '2026-08-28 09:20:00', 1800.00),
+(5, '2026-09-02 12:00:00', 1800.00),
+(5, '2026-09-06 15:10:00', 1800.00),
+(5, '2026-09-10 10:05:00', 1800.00),
+(5, '2026-09-14 17:30:00', 1800.00),
+(5, '2026-09-18 13:40:00', 1800.00),
+(5, '2026-09-18 15:40:00', 1800.00);
+
+
+-- ============================================================
+-- 2. USUARIO 2: CLIENTE NORMAL (id_usuario = 2)
+-- Cumple:
+-- - Tiene actividad en los últimos 90 días (no es En Riesgo)
+-- - Total gastado: $8,000 (no alcanza el mínimo de $15,000 de Alto Nivel)
+-- ============================================================
+INSERT INTO pedidos (id_usuario, fecha_pedido, monto_total) VALUES
+(2, '2026-08-05 09:00:00', 800.00),
+(2, '2026-08-12 11:30:00', 800.00),
+(2, '2026-08-19 14:15:00', 800.00),
+(2, '2026-08-25 16:00:00', 800.00),
+(2, '2026-09-01 10:20:00', 800.00),
+(2, '2026-09-05 12:45:00', 800.00),
+(2, '2026-09-09 15:10:00', 800.00),
+(2, '2026-09-12 11:00:00', 800.00),
+(2, '2026-09-16 13:30:00', 800.00),
+(2, '2026-09-20 17:00:00', 800.00);
+
+-- ============================================================
+-- 3. USUARIO 3: CLIENTE EN RIESGO (id_usuario = 3)
+-- Cumple:
+-- - Sin pedidos en los últimos 90 días (su último pedido fue en mayo 2026)
+-- - Total gastado: $3,500 (< $5,000)
+-- ============================================================
+INSERT INTO pedidos (id_usuario, fecha_pedido, monto_total) VALUES
+(3, '2026-01-15 10:00:00', 350.00),
+(3, '2026-02-03 12:30:00', 350.00),
+(3, '2026-02-20 15:00:00', 350.00),
+(3, '2026-03-08 11:15:00', 350.00),
+(3, '2026-03-22 14:40:00', 350.00),
+(3, '2026-04-05 09:50:00', 350.00),
+(3, '2026-04-18 16:20:00', 350.00),
+(3, '2026-05-02 10:10:00', 350.00),
+(3, '2026-05-12 13:00:00', 350.00),
+(3, '2026-05-20 17:15:00', 350.00);
 
 -- ---------- Inventario ----------
 SELECT * FROM productos;                  -- Todos los productos
@@ -401,3 +527,15 @@ SELECT COUNT(*) AS total_usuarios FROM usuarios;  -- Verificar que sí sean 200
 SELECT area, COUNT(*) AS total FROM usuarios GROUP BY area;  -- Cuántos usuarios por área
 SELECT * FROM servicios;                          -- Los servicios disponibles (Masajes, Rehabilitación)
 SELECT * FROM visitas;                            -- Todas las visitas registradas
+SELECT * FROM pedidos;
+SELECT * FROM metricas_de_clientes;
+SELECT * FROM estatus_clientes;
+SELECT * FROM estatus_clientes WHERE tipo_cliente = 'Cliente alto nivel' ORDER BY total_gasto DESC, total_compras DESC;
+SELECT * FROM estatus_clientes WHERE tipo_cliente = 'Cliente en riesgo'ORDER BY total_gasto ASC, total_compras ASC;
+SELECT * FROM estatus_clientes WHERE tipo_cliente = 'Cliente normal';
+
+SELECT tipo_cliente Tipo, 
+COUNT(*) AS cantidad_tipo_cliente,
+(COUNT(*) * 100.00) / (SELECT COUNT(*) FROM estatus_clientes) AS porcentaje_tipo_cliente
+FROM estatus_clientes
+GROUP BY  tipo_cliente;

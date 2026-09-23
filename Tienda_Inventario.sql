@@ -529,9 +529,24 @@ SELECT * FROM metricas_de_clientes;
 
 SELECT * FROM estatus_clientes;
 
-SELECT * FROM estatus_clientes WHERE tipo_cliente = 'Cliente alto nivel' ORDER BY total_gasto DESC, total_compras DESC;
-SELECT * FROM estatus_clientes WHERE tipo_cliente = 'Cliente en riesgo'ORDER BY total_gasto ASC, total_compras ASC;
-SELECT * FROM estatus_clientes WHERE tipo_cliente = 'Cliente normal';
+SELECT * FROM cliente_alto_nivel;
+SELECT * FROM cliente_riesgo;
+SELECT * FROM cliente_normal;
+
+CREATE VIEW cliente_alto_nivel AS
+SELECT * FROM estatus_clientes
+WHERE tipo_cliente = 'Cliente alto nivel'
+ORDER BY total_gasto DESC, total_compras DESC;
+
+CREATE VIEW cliente_riesgo AS
+SELECT * FROM estatus_clientes
+WHERE tipo_cliente = 'Cliente en riesgo'
+ORDER BY total_gasto ASC, total_compras ASC;
+
+CREATE VIEW cliente_normal AS
+SELECT * FROM estatus_clientes
+WHERE tipo_cliente = 'Cliente normal';
+
 
 SELECT tipo_cliente Tipo, 
 COUNT(*) AS cantidad_tipo_cliente,

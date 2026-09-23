@@ -344,6 +344,58 @@ app.get('/api/servicios-ranking', (req, res) => {
 });
 
 // ============================================================
+// CLIENTES - Métricas y clasificación comercial
+// Usa exclusivamente las vistas metricas_de_clientes y estatus_clientes
+// ============================================================
+
+app.get('/api/clientes-resumen', (req, res) => {
+  const clientesSql = `
+    SELECT
+      e.id_usuario,
+      TRIM(CONCAT(e.nombre, ' ', COALESCE(e.apellido, ''))) AS nombre,
+      u.correo,
+      u.telefono,
+      e.total_gasto AS total_gastado,
+      e.total_compras AS total_pedidos,
+      e.ultima_fecha_pedido AS ultimo_pedido,
+      m.pedidos_ultimos_90_dias,
+      m.pedidos_mes_actual,
+      m.pedidos_mes_anterior,
+      e.tipo_cliente AS estatus
+    FROM estatus_clientes e
+    INNER JOIN metricas_de_clientes m ON m.id_usuario = e.id_usuario
+    LEFT JOIN usuarios u ON u.id_usuario = e.id_usuario
+    ORDER BY e.id_usuario ASC
+  `;
+
+  db.query(clientesSql, (clientsError, clientes) => {
+    if (clientsError) {
+      console.error('Error consultando clientes:', clientsError);
+      return res.status(500).json({ error: 'No se pudieron consultar las vistas de clientes' });
+    }
+
+    const distribucion = Object.entries(
+      clientes.reduce((totals, cliente) => {
+        totals[cliente.estatus] = (totals[cliente.estatus] || 0) + 1;
+        return totals;
+      }, {}),
+    ).map(([categoria, total]) => ({ categoria, total }));
+
+    const mejorCliente = clientes
+      .filter((cliente) => cliente.estatus === 'Cliente alto nivel')
+      .sort((a, b) => Number(b.total_gastado) - Number(a.total_gastado)
+        || Number(b.total_pedidos) - Number(a.total_pedidos))[0] || null;
+
+    const clienteEnRiesgo = clientes
+      .filter((cliente) => cliente.estatus === 'Cliente en riesgo')
+      .sort((a, b) => Number(a.total_gastado) - Number(b.total_gastado)
+        || Number(a.total_pedidos) - Number(b.total_pedidos))[0] || null;
+
+    res.json({ clientes, distribucion, mejorCliente, clienteEnRiesgo });
+  });
+});
+
+// ============================================================
 // SERVICIOS - Registrar persona + sus visitas
 // Usa sp_agregar_usuario (6 parámetros) y sp_registrar_visita
 // ============================================================

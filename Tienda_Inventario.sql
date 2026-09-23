@@ -360,9 +360,73 @@ INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 (75, 2, '2026-09-17 13:25:00', 2026, 38),
 (120, 2, '2026-09-18 08:15:00', 2026, 38);
 
+-- ============================================================
+-- PARTE 4: SECCION DE CLIENTES
+-- ============================================================
+-- Tabla de pedidos --
+
+CREATE TABLE pedidos (
+    id_pedidos INT AUTO_INCREMENT PRIMARY KEY,
+    id_usuario INT NOT NULL,
+    fecha_pedido TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    monto_total DECIMAL(10, 2) NOT NULL,
+    FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE
+);
+
+CREATE VIEW metricas_de_clientes AS
+SELECT 
+    u.id_usuario,
+    u.nombre,
+    u.apellido,
+    COUNT(p.id_pedidos) AS total_compras,
+    COALESCE(SUM(p.monto_total), 0) AS total_gasto,
+    MAX(p.fecha_pedido) AS ultima_fecha_pedido,
+    COUNT(CASE
+		WHEN p.fecha_pedido >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+		THEN 1
+    END) AS pedidos_ultimos_90_dias,
+    
+    COUNT(CASE
+		WHEN p.fecha_pedido >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+		THEN 1
+    END) AS pedidos_mes_actual,
+    
+    COUNT(CASE
+		WHEN p.fecha_pedido >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
+		AND p.fecha_pedido < DATE_FORMAT(CURDATE(), '%Y-%m-01')
+		THEN 1
+    END) AS pedidos_mes_anterior
+FROM usuarios u
+LEFT JOIN pedidos p ON u.id_usuario = p.id_usuario
+GROUP BY u.id_usuario, u.nombre, u.apellido;
+
+CREATE VIEW estatus_clientes AS
+SELECT
+id_usuario,
+nombre,
+apellido,
+total_gasto,
+total_compras,
+ultima_fecha_pedido,
+CASE         
+	-- Regla 1: Cliente En Riesgo
+	WHEN pedidos_ultimos_90_dias = 0 
+		and total_gasto <= 5000
+		THEN 'Cliente en riesgo'
+
+	WHEN pedidos_ultimos_90_dias >= 10 
+		and total_gasto >= 15000 
+		and pedidos_mes_actual >= 4 
+		and pedidos_mes_anterior >= 4
+		THEN 'Cliente alto nivel'
+
+	ELSE 'Cliente normal'
+END AS tipo_cliente
+FROM metricas_de_clientes;
+
 
 -- ============================================================
--- PARTE 4: PRUEBA DEL TRIGGER
+-- PARTE 5: PRUEBA DEL TRIGGER
 -- ============================================================
 
 -- Baja el stock del producto 1 a 8 piezas.
@@ -371,8 +435,9 @@ INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 UPDATE productos SET cantidad = 8 WHERE id = 1;
 
 
+
 -- ============================================================
--- PARTE 5: EJEMPLOS DE CÓMO SE MANDAN A LLAMAR LOS PROCEDURES
+-- PARTE 6: EJEMPLOS DE CÓMO SE MANDAN A LLAMAR LOS PROCEDURES
 -- ============================================================
 
 -- Productos (ya los usa tu server.js tal cual)
@@ -387,8 +452,65 @@ UPDATE productos SET cantidad = 8 WHERE id = 1;
 
 
 -- ============================================================
--- PARTE 6: CONSULTAS (todo lo que puedes ir a ver, junto aquí)
+-- PARTE 7: CONSULTAS (todo lo que puedes ir a ver, junto aquí)
 -- ============================================================
+
+-- ============================================================
+-- 1. USUARIO 1: CLIENTE DE ALTO NIVEL (id_usuario = 1)
+-- Cumple:
+-- - 10 pedidos en los últimos 90 días (agosto y septiembre 2026)
+-- - Total gastado: $18,000 (>= $15,000)
+-- - 5 pedidos en agosto y 5 en septiembre (mínimo 4 por mes)
+-- ============================================================
+INSERT INTO pedidos (id_usuario, fecha_pedido, monto_total) VALUES
+(5, '2026-08-02 10:00:00', 1800.00),
+(5, '2026-08-08 14:30:00', 1800.00),
+(5, '2026-08-15 11:15:00', 1800.00),
+(5, '2026-08-20 16:45:00', 1800.00),
+(5, '2026-08-28 09:20:00', 1800.00),
+(5, '2026-09-02 12:00:00', 1800.00),
+(5, '2026-09-06 15:10:00', 1800.00),
+(5, '2026-09-10 10:05:00', 1800.00),
+(5, '2026-09-14 17:30:00', 1800.00),
+(5, '2026-09-18 13:40:00', 1800.00),
+(5, '2026-09-18 15:40:00', 1800.00);
+
+
+-- ============================================================
+-- 2. USUARIO 2: CLIENTE NORMAL (id_usuario = 2)
+-- Cumple:
+-- - Tiene actividad en los últimos 90 días (no es En Riesgo)
+-- - Total gastado: $8,000 (no alcanza el mínimo de $15,000 de Alto Nivel)
+-- ============================================================
+INSERT INTO pedidos (id_usuario, fecha_pedido, monto_total) VALUES
+(2, '2026-08-05 09:00:00', 800.00),
+(2, '2026-08-12 11:30:00', 800.00),
+(2, '2026-08-19 14:15:00', 800.00),
+(2, '2026-08-25 16:00:00', 800.00),
+(2, '2026-09-01 10:20:00', 800.00),
+(2, '2026-09-05 12:45:00', 800.00),
+(2, '2026-09-09 15:10:00', 800.00),
+(2, '2026-09-12 11:00:00', 800.00),
+(2, '2026-09-16 13:30:00', 800.00),
+(2, '2026-09-20 17:00:00', 800.00);
+
+-- ============================================================
+-- 3. USUARIO 3: CLIENTE EN RIESGO (id_usuario = 3)
+-- Cumple:
+-- - Sin pedidos en los últimos 90 días (su último pedido fue en mayo 2026)
+-- - Total gastado: $3,500 (< $5,000)
+-- ============================================================
+INSERT INTO pedidos (id_usuario, fecha_pedido, monto_total) VALUES
+(3, '2026-01-15 10:00:00', 350.00),
+(3, '2026-02-03 12:30:00', 350.00),
+(3, '2026-02-20 15:00:00', 350.00),
+(3, '2026-03-08 11:15:00', 350.00),
+(3, '2026-03-22 14:40:00', 350.00),
+(3, '2026-04-05 09:50:00', 350.00),
+(3, '2026-04-18 16:20:00', 350.00),
+(3, '2026-05-02 10:10:00', 350.00),
+(3, '2026-05-12 13:00:00', 350.00),
+(3, '2026-05-20 17:15:00', 350.00);
 
 -- ---------- Inventario ----------
 SELECT * FROM productos;                  -- Todos los productos
@@ -401,3 +523,227 @@ SELECT COUNT(*) AS total_usuarios FROM usuarios;  -- Verificar que sí sean 200
 SELECT area, COUNT(*) AS total FROM usuarios GROUP BY area;  -- Cuántos usuarios por área
 SELECT * FROM servicios;                          -- Los servicios disponibles (Masajes, Rehabilitación)
 SELECT * FROM visitas;                            -- Todas las visitas registradas
+SELECT * FROM pedidos;
+
+SELECT * FROM metricas_de_clientes;
+
+SELECT * FROM estatus_clientes;
+
+SELECT * FROM estatus_clientes WHERE tipo_cliente = 'Cliente alto nivel' ORDER BY total_gasto DESC, total_compras DESC;
+SELECT * FROM estatus_clientes WHERE tipo_cliente = 'Cliente en riesgo'ORDER BY total_gasto ASC, total_compras ASC;
+SELECT * FROM estatus_clientes WHERE tipo_cliente = 'Cliente normal';
+
+SELECT tipo_cliente Tipo, 
+COUNT(*) AS cantidad_tipo_cliente,
+(COUNT(*) * 100.00) / (SELECT COUNT(*) FROM estatus_clientes) AS porcentaje_tipo_cliente
+FROM estatus_clientes
+GROUP BY  tipo_cliente;
+
+select * from pedidos;
+
+
+USE tienda_inventario;
+
+-- ============================================================
+-- INSERT DE PEDIDOS PARA 200 USUARIOS
+-- ============================================================
+-- Usuarios 1-75:   Clientes de alto nivel
+-- Usuarios 76-165: Clientes normales
+-- Usuarios 166-200: Clientes en riesgo
+--
+-- Las fechas se calculan respecto al día en que ejecutes
+-- este script.
+-- ============================================================
+
+INSERT INTO pedidos (
+    id_usuario,
+    fecha_pedido,
+    monto_total
+)
+
+SELECT
+
+    u.id_usuario,
+
+    -- ========================================================
+    -- FECHA DEL PEDIDO
+    -- ========================================================
+
+    TIMESTAMP(
+
+        CASE
+
+            -- CLIENTES EN RIESGO
+            -- Pedidos realizados hace más de 90 días.
+
+            WHEN u.id_usuario BETWEEN 166 AND 200 THEN
+
+                DATE_SUB(
+                    CURDATE(),
+                    INTERVAL (
+                        110 + MOD(
+                            u.id_usuario * 11 + n.num * 19,
+                            160
+                        )
+                    ) DAY
+                )
+
+
+            -- CLIENTES DE ALTO NIVEL Y NORMALES
+            -- Se distribuyen entre el mes actual
+            -- y el mes anterior.
+
+            WHEN MOD(n.num, 2) = 0 THEN
+
+                -- Mes anterior
+
+                DATE_SUB(
+                    DATE_FORMAT(CURDATE(), '%Y-%m-01'),
+                    INTERVAL (
+                        1 + MOD(
+                            u.id_usuario * 7 + n.num * 3,
+                            26
+                        )
+                    ) DAY
+                )
+
+            ELSE
+
+                -- Mes actual
+
+                DATE_SUB(
+                    CURDATE(),
+                    INTERVAL MOD(
+                        u.id_usuario * 7 + n.num * 3,
+                        DAY(CURDATE())
+                    ) DAY
+                )
+
+        END,
+
+        -- Hora variable para cada pedido.
+
+        MAKETIME(
+            9 + MOD(u.id_usuario + n.num, 10),
+            MOD(u.id_usuario * 7 + n.num * 13, 60),
+            0
+        )
+
+    ) AS fecha_pedido,
+
+
+    -- ========================================================
+    -- MONTO TOTAL DEL PEDIDO
+    -- ========================================================
+
+    CASE
+
+        -- CLIENTES DE ALTO NIVEL
+        -- Pedidos entre $1,750 y $3,249.
+
+        WHEN u.id_usuario BETWEEN 1 AND 75 THEN
+
+            1750 + MOD(
+                u.id_usuario * 137 + n.num * 293,
+                1500
+            )
+
+
+        -- CLIENTES NORMALES
+        -- Pedidos entre $250 y $1,699.
+
+        WHEN u.id_usuario BETWEEN 76 AND 165 THEN
+
+            250 + MOD(
+                u.id_usuario * 173 + n.num * 251,
+                1450
+            )
+
+
+        -- CLIENTES EN RIESGO
+        -- Pedidos entre $100 y $899.
+
+        ELSE
+
+            100 + MOD(
+                u.id_usuario * 47 + n.num * 89,
+                800
+            )
+
+    END AS monto_total
+
+
+-- ============================================================
+-- OBTENER LOS 200 USUARIOS EXISTENTES
+-- ============================================================
+
+FROM usuarios u
+
+
+-- ============================================================
+-- GENERADOR DE NÚMEROS DEL 1 AL 14
+-- Cada número representa un pedido distinto.
+-- ============================================================
+
+CROSS JOIN (
+
+    SELECT 1 AS num
+    UNION ALL SELECT 2
+    UNION ALL SELECT 3
+    UNION ALL SELECT 4
+    UNION ALL SELECT 5
+    UNION ALL SELECT 6
+    UNION ALL SELECT 7
+    UNION ALL SELECT 8
+    UNION ALL SELECT 9
+    UNION ALL SELECT 10
+    UNION ALL SELECT 11
+    UNION ALL SELECT 12
+    UNION ALL SELECT 13
+    UNION ALL SELECT 14
+
+) AS n
+
+
+-- ============================================================
+-- CANTIDAD DE PEDIDOS POR USUARIO
+-- ============================================================
+
+WHERE
+
+    (
+        -- CLIENTES DE ALTO NIVEL
+        -- Cada usuario tendrá entre 10 y 14 pedidos.
+
+        u.id_usuario BETWEEN 1 AND 75
+
+        AND n.num <= (
+            10 + MOD(u.id_usuario * 3, 5)
+        )
+    )
+
+    OR
+
+    (
+        -- CLIENTES NORMALES
+        -- Cada usuario tendrá entre 2 y 8 pedidos.
+
+        u.id_usuario BETWEEN 76 AND 165
+
+        AND n.num <= (
+            2 + MOD(u.id_usuario * 3, 7)
+        )
+    )
+
+    OR
+
+    (
+        -- CLIENTES EN RIESGO
+        -- Cada usuario tendrá entre 1 y 3 pedidos.
+
+        u.id_usuario BETWEEN 166 AND 200
+
+        AND n.num <= (
+            1 + MOD(u.id_usuario * 5, 3)
+        )
+    );

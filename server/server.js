@@ -6,6 +6,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ============================================================
+// CONEXIÓN GENERAL A MYSQL
+// ============================================================
+// Este objeto es la conexión que comparten todos los endpoints del servidor.
+// Lee las variables DB_* cuando existen y, para desarrollo local, usa los
+// mismos valores definidos por el proyecto: localhost:3306/tienda_inventario.
+// El puerto 3001 se usa después para la API de Express; no es el puerto de MySQL.
 const db = mysql.createConnection({
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'root',
@@ -14,6 +21,8 @@ const db = mysql.createConnection({
   port: Number(process.env.DB_PORT) || 3306,
 });
 
+// Primero se comprueba que MySQL esté disponible. La API comienza a escuchar
+// peticiones únicamente después de que esta conexión se complete correctamente.
 db.connect((err) => {
   if (err) {
     console.error('Error conectando a MySQL:', err);
@@ -345,35 +354,55 @@ app.get('/api/servicios-ranking', (req, res) => {
 
 // ============================================================
 // CLIENTES - Métricas y clasificación comercial
-// Usa exclusivamente las vistas metricas_de_clientes y estatus_clientes
+// Las tres clasificaciones se leen desde las nuevas vistas del SQL:
+// cliente_alto_nivel, cliente_normal y cliente_riesgo.
 // ============================================================
 
 app.get('/api/clientes-resumen', (req, res) => {
+  // PASO 1: UNION ALL reúne las tres vistas sin volver a escribir en Node las
+  // reglas de clasificación. Cada vista ya contiene únicamente los clientes
+  // que le corresponden según las reglas declaradas en Tienda_Inventario.sql.
+  //
+  // PASO 2: metricas_de_clientes complementa las columnas mensuales que las
+  // tres vistas de clasificación no exponen.
+  //
+  // PASO 3: usuarios aporta correo y teléfono. Este JOIN es solo informativo;
+  // no modifica el estatus ni las métricas calculadas por las vistas.
   const clientesSql = `
     SELECT
-      e.id_usuario,
-      TRIM(CONCAT(e.nombre, ' ', COALESCE(e.apellido, ''))) AS nombre,
+      c.id_usuario,
+      TRIM(CONCAT(c.nombre, ' ', COALESCE(c.apellido, ''))) AS nombre,
       u.correo,
       u.telefono,
-      e.total_gasto AS total_gastado,
-      e.total_compras AS total_pedidos,
-      e.ultima_fecha_pedido AS ultimo_pedido,
+      c.total_gasto AS total_gastado,
+      c.total_compras AS total_pedidos,
+      c.ultima_fecha_pedido AS ultimo_pedido,
       m.pedidos_ultimos_90_dias,
       m.pedidos_mes_actual,
       m.pedidos_mes_anterior,
-      e.tipo_cliente AS estatus
-    FROM estatus_clientes e
-    INNER JOIN metricas_de_clientes m ON m.id_usuario = e.id_usuario
-    LEFT JOIN usuarios u ON u.id_usuario = e.id_usuario
-    ORDER BY e.id_usuario ASC
+      c.tipo_cliente AS estatus
+    FROM (
+      SELECT * FROM cliente_alto_nivel
+      UNION ALL
+      SELECT * FROM cliente_normal
+      UNION ALL
+      SELECT * FROM cliente_riesgo
+    ) AS c
+    INNER JOIN metricas_de_clientes m ON m.id_usuario = c.id_usuario
+    LEFT JOIN usuarios u ON u.id_usuario = c.id_usuario
+    ORDER BY c.id_usuario ASC
   `;
 
+  // db.query envía el SELECT a MySQL mediante la conexión creada al inicio.
+  // "clientes" contiene el resultado final que consumirá CustomersPage.jsx.
   db.query(clientesSql, (clientsError, clientes) => {
     if (clientsError) {
       console.error('Error consultando clientes:', clientsError);
       return res.status(500).json({ error: 'No se pudieron consultar las vistas de clientes' });
     }
 
+    // La gráfica solo necesita contar cuántas filas devolvió cada estatus.
+    // La clasificación en sí ya llegó resuelta desde las tres vistas SQL.
     const distribucion = Object.entries(
       clientes.reduce((totals, cliente) => {
         totals[cliente.estatus] = (totals[cliente.estatus] || 0) + 1;
@@ -381,6 +410,8 @@ app.get('/api/clientes-resumen', (req, res) => {
       }, {}),
     ).map(([categoria, total]) => ({ categoria, total }));
 
+    // Las dos tarjetas destacadas se eligen de las filas ya clasificadas.
+    // No se cambia el tipo de cliente: únicamente se ordena cada categoría.
     const mejorCliente = clientes
       .filter((cliente) => cliente.estatus === 'Cliente alto nivel')
       .sort((a, b) => Number(b.total_gastado) - Number(a.total_gastado)
@@ -391,6 +422,8 @@ app.get('/api/clientes-resumen', (req, res) => {
       .sort((a, b) => Number(a.total_gastado) - Number(b.total_gastado)
         || Number(a.total_pedidos) - Number(b.total_pedidos))[0] || null;
 
+    // Esta es la estructura JSON recibida por GET /api/clientes-resumen en el
+    // front: tabla completa, datos de la gráfica y dos tarjetas destacadas.
     res.json({ clientes, distribucion, mejorCliente, clienteEnRiesgo });
   });
 });

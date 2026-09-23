@@ -400,9 +400,6 @@ FROM usuarios u
 LEFT JOIN pedidos p ON u.id_usuario = p.id_usuario
 GROUP BY u.id_usuario, u.nombre, u.apellido;
 
-DROP VIEW metricas_de_clientes;
-DROP TABLE pedidos;
-
 CREATE VIEW estatus_clientes AS
 SELECT
 id_usuario,
@@ -427,7 +424,6 @@ CASE
 END AS tipo_cliente
 FROM metricas_de_clientes;
 
-DROP VIEW estatus_clientes;
 
 -- ============================================================
 -- PARTE 5: PRUEBA DEL TRIGGER
@@ -528,8 +524,11 @@ SELECT area, COUNT(*) AS total FROM usuarios GROUP BY area;  -- Cuántos usuario
 SELECT * FROM servicios;                          -- Los servicios disponibles (Masajes, Rehabilitación)
 SELECT * FROM visitas;                            -- Todas las visitas registradas
 SELECT * FROM pedidos;
+
 SELECT * FROM metricas_de_clientes;
+
 SELECT * FROM estatus_clientes;
+
 SELECT * FROM estatus_clientes WHERE tipo_cliente = 'Cliente alto nivel' ORDER BY total_gasto DESC, total_compras DESC;
 SELECT * FROM estatus_clientes WHERE tipo_cliente = 'Cliente en riesgo'ORDER BY total_gasto ASC, total_compras ASC;
 SELECT * FROM estatus_clientes WHERE tipo_cliente = 'Cliente normal';
@@ -539,3 +538,212 @@ COUNT(*) AS cantidad_tipo_cliente,
 (COUNT(*) * 100.00) / (SELECT COUNT(*) FROM estatus_clientes) AS porcentaje_tipo_cliente
 FROM estatus_clientes
 GROUP BY  tipo_cliente;
+
+select * from pedidos;
+
+
+USE tienda_inventario;
+
+-- ============================================================
+-- INSERT DE PEDIDOS PARA 200 USUARIOS
+-- ============================================================
+-- Usuarios 1-75:   Clientes de alto nivel
+-- Usuarios 76-165: Clientes normales
+-- Usuarios 166-200: Clientes en riesgo
+--
+-- Las fechas se calculan respecto al día en que ejecutes
+-- este script.
+-- ============================================================
+
+INSERT INTO pedidos (
+    id_usuario,
+    fecha_pedido,
+    monto_total
+)
+
+SELECT
+
+    u.id_usuario,
+
+    -- ========================================================
+    -- FECHA DEL PEDIDO
+    -- ========================================================
+
+    TIMESTAMP(
+
+        CASE
+
+            -- CLIENTES EN RIESGO
+            -- Pedidos realizados hace más de 90 días.
+
+            WHEN u.id_usuario BETWEEN 166 AND 200 THEN
+
+                DATE_SUB(
+                    CURDATE(),
+                    INTERVAL (
+                        110 + MOD(
+                            u.id_usuario * 11 + n.num * 19,
+                            160
+                        )
+                    ) DAY
+                )
+
+
+            -- CLIENTES DE ALTO NIVEL Y NORMALES
+            -- Se distribuyen entre el mes actual
+            -- y el mes anterior.
+
+            WHEN MOD(n.num, 2) = 0 THEN
+
+                -- Mes anterior
+
+                DATE_SUB(
+                    DATE_FORMAT(CURDATE(), '%Y-%m-01'),
+                    INTERVAL (
+                        1 + MOD(
+                            u.id_usuario * 7 + n.num * 3,
+                            26
+                        )
+                    ) DAY
+                )
+
+            ELSE
+
+                -- Mes actual
+
+                DATE_SUB(
+                    CURDATE(),
+                    INTERVAL MOD(
+                        u.id_usuario * 7 + n.num * 3,
+                        DAY(CURDATE())
+                    ) DAY
+                )
+
+        END,
+
+        -- Hora variable para cada pedido.
+
+        MAKETIME(
+            9 + MOD(u.id_usuario + n.num, 10),
+            MOD(u.id_usuario * 7 + n.num * 13, 60),
+            0
+        )
+
+    ) AS fecha_pedido,
+
+
+    -- ========================================================
+    -- MONTO TOTAL DEL PEDIDO
+    -- ========================================================
+
+    CASE
+
+        -- CLIENTES DE ALTO NIVEL
+        -- Pedidos entre $1,750 y $3,249.
+
+        WHEN u.id_usuario BETWEEN 1 AND 75 THEN
+
+            1750 + MOD(
+                u.id_usuario * 137 + n.num * 293,
+                1500
+            )
+
+
+        -- CLIENTES NORMALES
+        -- Pedidos entre $250 y $1,699.
+
+        WHEN u.id_usuario BETWEEN 76 AND 165 THEN
+
+            250 + MOD(
+                u.id_usuario * 173 + n.num * 251,
+                1450
+            )
+
+
+        -- CLIENTES EN RIESGO
+        -- Pedidos entre $100 y $899.
+
+        ELSE
+
+            100 + MOD(
+                u.id_usuario * 47 + n.num * 89,
+                800
+            )
+
+    END AS monto_total
+
+
+-- ============================================================
+-- OBTENER LOS 200 USUARIOS EXISTENTES
+-- ============================================================
+
+FROM usuarios u
+
+
+-- ============================================================
+-- GENERADOR DE NÚMEROS DEL 1 AL 14
+-- Cada número representa un pedido distinto.
+-- ============================================================
+
+CROSS JOIN (
+
+    SELECT 1 AS num
+    UNION ALL SELECT 2
+    UNION ALL SELECT 3
+    UNION ALL SELECT 4
+    UNION ALL SELECT 5
+    UNION ALL SELECT 6
+    UNION ALL SELECT 7
+    UNION ALL SELECT 8
+    UNION ALL SELECT 9
+    UNION ALL SELECT 10
+    UNION ALL SELECT 11
+    UNION ALL SELECT 12
+    UNION ALL SELECT 13
+    UNION ALL SELECT 14
+
+) AS n
+
+
+-- ============================================================
+-- CANTIDAD DE PEDIDOS POR USUARIO
+-- ============================================================
+
+WHERE
+
+    (
+        -- CLIENTES DE ALTO NIVEL
+        -- Cada usuario tendrá entre 10 y 14 pedidos.
+
+        u.id_usuario BETWEEN 1 AND 75
+
+        AND n.num <= (
+            10 + MOD(u.id_usuario * 3, 5)
+        )
+    )
+
+    OR
+
+    (
+        -- CLIENTES NORMALES
+        -- Cada usuario tendrá entre 2 y 8 pedidos.
+
+        u.id_usuario BETWEEN 76 AND 165
+
+        AND n.num <= (
+            2 + MOD(u.id_usuario * 3, 7)
+        )
+    )
+
+    OR
+
+    (
+        -- CLIENTES EN RIESGO
+        -- Cada usuario tendrá entre 1 y 3 pedidos.
+
+        u.id_usuario BETWEEN 166 AND 200
+
+        AND n.num <= (
+            1 + MOD(u.id_usuario * 5, 3)
+        )
+    );

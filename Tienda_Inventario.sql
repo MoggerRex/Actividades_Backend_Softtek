@@ -3,6 +3,36 @@
 -- Inventario de productos + Registro de usuarios (con área/rol) y visitas a servicios
 -- ============================================================
 
+-- ============================================================
+-- ÍNDICE GENERAL DEL ARCHIVO
+-- ============================================================
+-- SECCIÓN 0: Preparación y selección de la base de datos
+-- SECCIÓN 1: Inventario de productos
+--   1.1 Tablas | 1.2 Datos iniciales | 1.3 Vista
+--   1.4 Trigger | 1.5 Procedimientos almacenados
+-- SECCIÓN 2: Usuarios, servicios y visitas
+--   2.1 Tablas | 2.2 Catálogo de servicios | 2.3 Procedimientos
+-- SECCIÓN 3: Datos de prueba de usuarios y visitas
+-- SECCIÓN 4: Clientes, pedidos y clasificación
+--   4.1 Tabla de pedidos | 4.2 Métricas | 4.3 Estatus
+-- SECCIÓN 5: Prueba funcional del trigger de inventario
+-- SECCIÓN 6: Ejemplos de llamadas a procedimientos
+-- SECCIÓN 7: Datos de prueba, consultas y vistas de clientes
+-- SECCIÓN 8: Generación masiva de pedidos para 200 usuarios
+--
+-- IMPORTANTE:
+-- - Solo se agregaron y reorganizaron comentarios y espacios.
+-- - Las sentencias SQL y su orden original se conservaron sin cambios.
+-- - Los bloques se numeran según su propósito para facilitar su ejecución
+--   por separado desde MySQL Workbench u otro cliente MySQL.
+--
+-- REFERENCIA DEL BACKEND:
+-- Archivo: server/server.js
+-- Los números de línea indicados corresponden a la versión actual.
+-- La ruta HTTP se incluye también porque seguirá siendo una referencia
+-- válida si server.js cambia y las líneas se desplazan.
+-- ============================================================
+
 
 -- ============================================================
 -- 0. CREACIÓN DE LA BASE DE DATOS
@@ -16,7 +46,13 @@ USE tienda_inventario;
 -- PARTE 1: INVENTARIO DE PRODUCTOS
 -- ============================================================
 
--- 1.1 Tabla de productos
+-- ------------------------------------------------------------
+-- 1.1 TABLAS DEL MÓDULO DE INVENTARIO
+-- ------------------------------------------------------------
+-- 1.1.1 Tabla principal de productos
+-- Usada en server/server.js:
+--   líneas 47-57, GET /api/productos (consulta directa de productos).
+--   líneas 77-136, altas, cambios de cantidad y bajas mediante procedures.
 CREATE TABLE productos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
@@ -25,7 +61,7 @@ CREATE TABLE productos (
     cantidad INT NOT NULL DEFAULT 0
 );
 
--- 1.2 Tabla de alertas de stock (se llena sola vía trigger, ver 1.5)
+-- 1.1.2 Tabla de alertas de stock (se llena sola vía trigger, ver 1.4)
 CREATE TABLE alertas_stock (
     id INT AUTO_INCREMENT PRIMARY KEY,
     producto_id INT,
@@ -34,7 +70,10 @@ CREATE TABLE alertas_stock (
     FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
 );
 
--- 1.3 Carga inicial de 30 productos
+-- ------------------------------------------------------------
+-- 1.2 DATOS INICIALES DEL INVENTARIO
+-- ------------------------------------------------------------
+-- Carga inicial de 30 productos
 INSERT INTO productos (nombre, precio, descripcion, cantidad) VALUES
 ('Teclado Mecánico RGB', 850.00, 'Teclado gamer con switches azules y retroiluminación', 12),
 ('Mouse Inalámbrico Ergonómico', 350.00, 'Mouse óptico recargable de 2.4GHz', 8),
@@ -67,7 +106,13 @@ INSERT INTO productos (nombre, precio, descripcion, cantidad) VALUES
 ('Bocina Bluetooth Portátil', 480.00, 'Resistente al agua IPX5', 4),
 ('Teclado Numérico USB', 140.00, 'Teclado externo para laptop', 16);
 
--- 1.4 Vista: productos caros (>= $100) con stock crítico (<= 10)
+-- ------------------------------------------------------------
+-- 1.3 VISTA DE ALERTAS DEL INVENTARIO
+-- ------------------------------------------------------------
+-- Productos caros (>= $100) con stock crítico (<= 10)
+-- Usada en server/server.js:
+--   líneas 59-70, GET /api/productos-alerta.
+--   La consulta concreta a esta vista está en la línea 61.
 CREATE VIEW vista_alertas_inventario AS
 SELECT
     id,
@@ -78,7 +123,14 @@ SELECT
 FROM productos
 WHERE precio >= 100.00 AND cantidad <= 10;
 
--- 1.5 Trigger: genera una alerta automática cuando el stock baja a 10 o menos
+-- ------------------------------------------------------------
+-- 1.4 TRIGGER DE CONTROL DE STOCK
+-- ------------------------------------------------------------
+-- Genera una alerta automática cuando el stock baja a 10 o menos
+-- Uso indirecto desde server/server.js:
+--   líneas 103-119, PATCH /api/productos/:id/cantidad.
+--   El endpoint llama al procedure de actualización; MySQL ejecuta este
+--   trigger automáticamente cuando cambia la cantidad del producto.
 DELIMITER //
 CREATE TRIGGER trigger_verificar_stock_bajo
 AFTER UPDATE ON productos
@@ -94,14 +146,17 @@ BEGIN
 END//
 DELIMITER ;
 
--- 1.6 Procedimientos de productos
+-- ------------------------------------------------------------
+-- 1.5 PROCEDIMIENTOS ALMACENADOS DE PRODUCTOS
+-- ------------------------------------------------------------
 --     Coinciden EXACTAMENTE con los CALL que ya tiene tu server.js:
 --     el orden de los parámetros es el mismo que mandas desde Node.
 
 DELIMITER //
 
--- Usado en: app.post('/api/productos', ...)
---   db.query('CALL sp_insertar_producto(?, ?, ?, ?)', [nombre, precio, descripcion, cantidad], ...)
+-- Usado en server/server.js:
+--   líneas 77-101, POST /api/productos.
+--   La llamada CALL sp_insertar_producto(?, ?, ?, ?) está en las líneas 89-91.
 CREATE PROCEDURE sp_insertar_producto(
     IN p_nombre VARCHAR(100),
     IN p_precio DECIMAL(10, 2),
@@ -113,8 +168,9 @@ BEGIN
     VALUES (p_nombre, p_precio, p_descripcion, p_cantidad);
 END //
 
--- Usado en: app.patch('/api/productos/:id/cantidad', ...)
---   db.query('CALL sp_actualizar_cantidad_producto(?, ?)', [id, cantidad], ...)
+-- Usado en server/server.js:
+--   líneas 103-119, PATCH /api/productos/:id/cantidad.
+--   La llamada CALL sp_actualizar_cantidad_producto(?, ?) está en la línea 111.
 CREATE PROCEDURE sp_actualizar_cantidad_producto(
     IN p_id INT,
     IN p_nueva_cantidad INT
@@ -125,8 +181,9 @@ BEGIN
     WHERE id = p_id;
 END //
 
--- Usado en: app.delete('/api/productos/:id', ...)
---   db.query('CALL sp_eliminar_producto(?)', [id], ...)
+-- Usado en server/server.js:
+--   líneas 121-136, DELETE /api/productos/:id.
+--   La llamada CALL sp_eliminar_producto(?) está en la línea 128.
 CREATE PROCEDURE sp_eliminar_producto(
     IN p_id INT
 )
@@ -141,7 +198,16 @@ DELIMITER ;
 -- PARTE 2: USUARIOS, SERVICIOS Y VISITAS
 -- ============================================================
 
--- 2.1 Tabla de usuarios
+-- ------------------------------------------------------------
+-- 2.1 TABLAS DEL MÓDULO DE USUARIOS, SERVICIOS Y VISITAS
+-- ------------------------------------------------------------
+-- Usadas en server/server.js:
+--   líneas 142-249, GET /api/servicios-resumen.
+--   líneas 251-353, GET /api/servicios-ranking.
+--   líneas 436-545, POST /api/usuarios-servicios.
+-- Esos endpoints consultan o escriben en usuarios, servicios y visitas.
+--
+-- 2.1.1 Tabla de usuarios
 --     Incluye area (departamento) y rol (puesto), que se
 --     llenan en la Parte 3 después de cargar a los 200 usuarios.
 CREATE TABLE usuarios (
@@ -155,7 +221,7 @@ CREATE TABLE usuarios (
     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2.2 Tabla de servicios (Masajes, Rehabilitación)
+-- 2.1.2 Tabla de servicios (Masajes, Rehabilitación)
 CREATE TABLE servicios (
     id_servicio INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
@@ -163,7 +229,7 @@ CREATE TABLE servicios (
     activo BOOLEAN DEFAULT TRUE
 );
 
--- 2.3 Tabla de visitas
+-- 2.1.3 Tabla de visitas
 --     anio y semana se guardan explícitamente en cada INSERT para
 --     poder agrupar/filtrar reportes por semana sin recalcular nada.
 --     El UNIQUE evita que un usuario registre el mismo servicio
@@ -180,19 +246,27 @@ CREATE TABLE visitas (
     UNIQUE (id_usuario, id_servicio, anio, semana)
 );
 
--- 2.4 Carga de los 2 servicios
+-- ------------------------------------------------------------
+-- 2.2 CATÁLOGO INICIAL DE SERVICIOS
+-- ------------------------------------------------------------
+-- Carga de los 2 servicios
 INSERT INTO servicios (nombre, descripcion) VALUES
 ('Masajes', 'Sesión de masajes terapéuticos'),
 ('Rehabilitación', 'Sesión de rehabilitación física');
 
--- 2.5 Procedimientos de usuarios y visitas
---     Estos son NUEVOS: hoy tu server.js hace el INSERT directo en la
---     ruta POST /api/usuarios-servicios. Aquí tienes el equivalente en
---     procedure; más abajo (comentario) te explico cómo cambiar el
---     server.js para usarlos en vez del INSERT directo.
+-- ------------------------------------------------------------
+-- 2.3 PROCEDIMIENTOS ALMACENADOS DE USUARIOS Y VISITAS
+-- ------------------------------------------------------------
+-- Ambos se usan actualmente en POST /api/usuarios-servicios.
+-- El servidor ejecuta todo dentro de una transacción para que el usuario
+-- y sus visitas se confirmen juntos o se reviertan juntos si hay un error.
 
 DELIMITER //
 
+-- Usado en server/server.js:
+--   líneas 436-510, POST /api/usuarios-servicios.
+--   La llamada CALL sp_agregar_usuario(?, ?, ?, ?, ?, ?) está en 473-483.
+--   El id generado se recupera con LAST_INSERT_ID() en las líneas 492-500.
 CREATE PROCEDURE sp_agregar_usuario(
     IN p_nombre VARCHAR(100),
     IN p_apellido VARCHAR(100),
@@ -208,6 +282,10 @@ BEGIN
     -- (ver ejemplo de uso en el server.js más abajo)
 END //
 
+-- Usado en server/server.js:
+--   líneas 511-542, dentro de POST /api/usuarios-servicios.
+--   La llamada CALL sp_registrar_visita(?, ?, NOW(), ?, ?) está en 514-517
+--   y se repite una vez por cada servicio seleccionado por la persona.
 CREATE PROCEDURE sp_registrar_visita(
     IN p_id_usuario INT,
     IN p_id_servicio INT,
@@ -227,7 +305,10 @@ DELIMITER ;
 -- PARTE 3: DATOS DE PRUEBA (200 usuarios + visitas de ejemplo)
 -- ============================================================
 
--- 3.1 Primeros 50 usuarios (base)
+-- ------------------------------------------------------------
+-- 3.1 CARGA BASE DE USUARIOS
+-- ------------------------------------------------------------
+-- Primeros 50 usuarios
 INSERT INTO usuarios (nombre, apellido, correo, telefono) VALUES
 ('Luis', 'Hernández', 'luis.h@example.com', '5550000001'),
 ('Ana', 'García', 'ana.g@example.com', '5550000002'),
@@ -280,7 +361,10 @@ INSERT INTO usuarios (nombre, apellido, correo, telefono) VALUES
 ('Ramón', 'Valdez', 'ramon.v@example.com', '5550000049'),
 ('Isabel', 'Cabrera', 'isabel.c@example.com', '5550000050');
 
--- 3.2 Siguientes 150 usuarios, generados combinando nombres/apellidos
+-- ------------------------------------------------------------
+-- 3.2 GENERACIÓN DE USUARIOS ADICIONALES
+-- ------------------------------------------------------------
+-- Siguientes 150 usuarios, generados combinando nombres/apellidos
 --     de los 50 base, hasta completar los 200
 INSERT INTO usuarios (nombre, apellido, correo, telefono)
 SELECT
@@ -292,7 +376,10 @@ FROM usuarios u1
 JOIN usuarios u2 ON u1.id_usuario != u2.id_usuario
 LIMIT 150;
 
--- 3.3 Asignar área y rol a los 200 usuarios (aleatorio pero coherente:
+-- ------------------------------------------------------------
+-- 3.3 ASIGNACIÓN DE ÁREAS Y ROLES
+-- ------------------------------------------------------------
+-- Asignar área y rol a los 200 usuarios (aleatorio pero coherente:
 --     el rol siempre corresponde al área que le tocó a cada quien)
 SET SQL_SAFE_UPDATES = 0;
 
@@ -319,7 +406,9 @@ END;
 
 SET SQL_SAFE_UPDATES = 1;
 
--- 3.4 Visitas de ejemplo para la Semana 38, 2026
+-- ------------------------------------------------------------
+-- 3.4 VISITAS DE EJEMPLO PARA LA SEMANA 38 DE 2026
+-- ------------------------------------------------------------
 
 -- Usuarios que usaron AMBOS servicios
 INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
@@ -361,9 +450,16 @@ INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 (120, 2, '2026-09-18 08:15:00', 2026, 38);
 
 -- ============================================================
--- PARTE 4: SECCION DE CLIENTES
+-- PARTE 4: CLIENTES, PEDIDOS Y CLASIFICACIÓN
 -- ============================================================
--- Tabla de pedidos --
+
+-- ------------------------------------------------------------
+-- 4.1 TABLA DE PEDIDOS
+-- ------------------------------------------------------------
+-- Uso indirecto desde server/server.js:
+--   líneas 361-429, GET /api/clientes-resumen.
+--   El endpoint no consulta pedidos directamente; recibe sus agregados por
+--   medio de metricas_de_clientes y de las vistas de clasificación.
 
 CREATE TABLE pedidos (
     id_pedidos INT AUTO_INCREMENT PRIMARY KEY,
@@ -373,6 +469,14 @@ CREATE TABLE pedidos (
     FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE
 );
 
+-- ------------------------------------------------------------
+-- 4.2 VISTA DE MÉTRICAS DE CLIENTES
+-- ------------------------------------------------------------
+-- Resume compras, gasto acumulado, última compra y actividad
+-- reciente de cada usuario.
+-- Usada en server/server.js:
+--   líneas 361-429, GET /api/clientes-resumen.
+--   El JOIN con metricas_de_clientes está en la línea 391.
 CREATE VIEW metricas_de_clientes AS
 SELECT 
     u.id_usuario,
@@ -400,6 +504,13 @@ FROM usuarios u
 LEFT JOIN pedidos p ON u.id_usuario = p.id_usuario
 GROUP BY u.id_usuario, u.nombre, u.apellido;
 
+-- ------------------------------------------------------------
+-- 4.3 VISTA DE CLASIFICACIÓN DE CLIENTES
+-- ------------------------------------------------------------
+-- Clasifica a cada cliente como: en riesgo, alto nivel o normal.
+-- Uso indirecto desde server/server.js:
+--   cliente_alto_nivel, cliente_normal y cliente_riesgo dependen de esta
+--   vista; el endpoint GET /api/clientes-resumen las reúne en 385-389.
 CREATE VIEW estatus_clientes AS
 SELECT
 id_usuario,
@@ -429,6 +540,9 @@ FROM metricas_de_clientes;
 -- PARTE 5: PRUEBA DEL TRIGGER
 -- ============================================================
 
+-- Este bloque modifica un producto para comprobar el trigger
+-- creado en la sección 1.4.
+
 -- Baja el stock del producto 1 a 8 piezas.
 -- Como su precio es >= $100, dispara el trigger y crea un registro
 -- en alertas_stock automáticamente.
@@ -440,27 +554,40 @@ UPDATE productos SET cantidad = 8 WHERE id = 1;
 -- PARTE 6: EJEMPLOS DE CÓMO SE MANDAN A LLAMAR LOS PROCEDURES
 -- ============================================================
 
+-- Todas las instrucciones de esta sección permanecen comentadas;
+-- sirven como referencia y no se ejecutan con el script completo.
+
 -- Productos (ya los usa tu server.js tal cual)
 -- CALL sp_insertar_producto('Silla Gamer', 3200.00, 'Silla reclinable', 15);
 -- CALL sp_actualizar_cantidad_producto(1, 20);
 -- CALL sp_eliminar_producto(31);
 
--- Usuarios y visitas (nuevos, ver nota debajo sobre el server.js)
+-- Usuarios y visitas (usados actualmente por server/server.js, líneas 473-517)
 -- CALL sp_agregar_usuario('Pepe', 'Pérez', 'pepe@correo.com', '8110000000');
 -- SELECT LAST_INSERT_ID() AS id_usuario;  -- Recupera el id recién creado
 -- CALL sp_registrar_visita(1, 1, '2026-09-20 10:00:00', 2026, 38);
 
 
 -- ============================================================
--- PARTE 7: CONSULTAS (todo lo que puedes ir a ver, junto aquí)
+-- PARTE 7: DATOS, CONSULTAS Y VISTAS DE CLIENTES
 -- ============================================================
 
+-- Esta parte conserva el orden original del archivo y se divide en:
+-- 7.1 Pedidos de ejemplo para tres perfiles de cliente
+-- 7.2 Consultas generales de comprobación
+-- 7.3 Creación de vistas filtradas por tipo de cliente
+-- 7.4 Resumen porcentual y consulta final de pedidos
+
+-- ------------------------------------------------------------
+-- 7.1 PEDIDOS DE EJEMPLO PARA TRES PERFILES DE CLIENTE
+-- ------------------------------------------------------------
+
 -- ============================================================
--- 1. USUARIO 1: CLIENTE DE ALTO NIVEL (id_usuario = 1)
+-- 1. PERFIL DE CLIENTE DE ALTO NIVEL (id_usuario = 5)
 -- Cumple:
--- - 10 pedidos en los últimos 90 días (agosto y septiembre 2026)
--- - Total gastado: $18,000 (>= $15,000)
--- - 5 pedidos en agosto y 5 en septiembre (mínimo 4 por mes)
+-- - 11 pedidos en los últimos 90 días (agosto y septiembre 2026)
+-- - Total gastado: $19,800 (>= $15,000)
+-- - 5 pedidos en agosto y 6 en septiembre (mínimo 4 por mes)
 -- ============================================================
 INSERT INTO pedidos (id_usuario, fecha_pedido, monto_total) VALUES
 (5, '2026-08-02 10:00:00', 1800.00),
@@ -477,7 +604,7 @@ INSERT INTO pedidos (id_usuario, fecha_pedido, monto_total) VALUES
 
 
 -- ============================================================
--- 2. USUARIO 2: CLIENTE NORMAL (id_usuario = 2)
+-- 2. PERFIL DE CLIENTE NORMAL (id_usuario = 2)
 -- Cumple:
 -- - Tiene actividad en los últimos 90 días (no es En Riesgo)
 -- - Total gastado: $8,000 (no alcanza el mínimo de $15,000 de Alto Nivel)
@@ -495,7 +622,7 @@ INSERT INTO pedidos (id_usuario, fecha_pedido, monto_total) VALUES
 (2, '2026-09-20 17:00:00', 800.00);
 
 -- ============================================================
--- 3. USUARIO 3: CLIENTE EN RIESGO (id_usuario = 3)
+-- 3. PERFIL DE CLIENTE EN RIESGO (id_usuario = 3)
 -- Cumple:
 -- - Sin pedidos en los últimos 90 días (su último pedido fue en mayo 2026)
 -- - Total gastado: $3,500 (< $5,000)
@@ -511,6 +638,10 @@ INSERT INTO pedidos (id_usuario, fecha_pedido, monto_total) VALUES
 (3, '2026-05-02 10:10:00', 350.00),
 (3, '2026-05-12 13:00:00', 350.00),
 (3, '2026-05-20 17:15:00', 350.00);
+
+-- ------------------------------------------------------------
+-- 7.2 CONSULTAS GENERALES DE COMPROBACIÓN
+-- ------------------------------------------------------------
 
 -- ---------- Inventario ----------
 SELECT * FROM productos;                  -- Todos los productos
@@ -529,9 +660,39 @@ SELECT * FROM metricas_de_clientes;
 
 SELECT * FROM estatus_clientes;
 
-SELECT * FROM estatus_clientes WHERE tipo_cliente = 'Cliente alto nivel' ORDER BY total_gasto DESC, total_compras DESC;
-SELECT * FROM estatus_clientes WHERE tipo_cliente = 'Cliente en riesgo'ORDER BY total_gasto ASC, total_compras ASC;
-SELECT * FROM estatus_clientes WHERE tipo_cliente = 'Cliente normal';
+-- ------------------------------------------------------------
+-- 7.3 VISTAS FILTRADAS POR TIPO DE CLIENTE
+-- ------------------------------------------------------------
+-- Usadas en server/server.js:
+--   líneas 361-429, GET /api/clientes-resumen.
+--   Las tres vistas se unen con UNION ALL en las líneas 384-390 para entregar
+--   la tabla, la distribución y los clientes destacados al frontend.
+
+CREATE VIEW cliente_alto_nivel AS
+SELECT * FROM estatus_clientes
+WHERE tipo_cliente = 'Cliente alto nivel'
+ORDER BY total_gasto DESC, total_compras DESC;
+
+CREATE VIEW cliente_riesgo AS
+SELECT * FROM estatus_clientes
+WHERE tipo_cliente = 'Cliente en riesgo'
+ORDER BY total_gasto ASC, total_compras ASC;
+
+CREATE VIEW cliente_normal AS
+SELECT * FROM estatus_clientes
+WHERE tipo_cliente = 'Cliente normal';
+
+-- NOTA DE DEPENDENCIA:
+-- Las tres consultas siguientes requieren que las vistas de la
+-- sección 7.3 ya existan. En una base recién creada, ejecuta primero
+-- la sección 7.3 y después vuelve a ejecutar estas tres consultas.
+SELECT * FROM cliente_alto_nivel;
+SELECT * FROM cliente_riesgo;
+SELECT * FROM cliente_normal;
+
+-- ------------------------------------------------------------
+-- 7.4 RESUMEN PORCENTUAL Y CONSULTA FINAL DE PEDIDOS
+-- ------------------------------------------------------------
 
 SELECT tipo_cliente Tipo, 
 COUNT(*) AS cantidad_tipo_cliente,
@@ -542,10 +703,16 @@ GROUP BY  tipo_cliente;
 select * from pedidos;
 
 
+-- ============================================================
+-- PARTE 8: GENERACIÓN MASIVA DE PEDIDOS PARA 200 USUARIOS
+-- ============================================================
+-- Este bloque vuelve a seleccionar la base de datos y genera pedidos
+-- según tres rangos de usuarios y tres perfiles de cliente.
+
 USE tienda_inventario;
 
 -- ============================================================
--- INSERT DE PEDIDOS PARA 200 USUARIOS
+-- 8.1 INSERT DE PEDIDOS PARA 200 USUARIOS
 -- ============================================================
 -- Usuarios 1-75:   Clientes de alto nivel
 -- Usuarios 76-165: Clientes normales

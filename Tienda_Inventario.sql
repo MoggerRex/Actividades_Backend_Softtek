@@ -52,7 +52,7 @@ USE tienda_inventario;
 -- 1.1.1 Tabla principal de productos
 -- Usada en server/server.js:
 --   líneas 47-57, GET /api/productos (consulta directa de productos).
---   líneas 77-136, altas, cambios de cantidad y bajas mediante procedures.
+--   líneas 100-159, altas, cambios de cantidad y bajas mediante procedures.
 CREATE TABLE productos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
@@ -62,6 +62,9 @@ CREATE TABLE productos (
 );
 
 -- 1.1.2 Tabla de alertas de stock (se llena sola vía trigger, ver 1.4)
+-- Usada en server/server.js:
+--   líneas 72-97, GET /api/alertas-stock (historial completo del trigger).
+-- Mostrada en StorePage.jsx mediante el botón "Ver historial".
 CREATE TABLE alertas_stock (
     id INT AUTO_INCREMENT PRIMARY KEY,
     producto_id INT,
@@ -128,7 +131,7 @@ WHERE precio >= 100.00 AND cantidad <= 10;
 -- ------------------------------------------------------------
 -- Genera una alerta automática cuando el stock baja a 10 o menos
 -- Uso indirecto desde server/server.js:
---   líneas 103-119, PATCH /api/productos/:id/cantidad.
+--   líneas 126-142, PATCH /api/productos/:id/cantidad.
 --   El endpoint llama al procedure de actualización; MySQL ejecuta este
 --   trigger automáticamente cuando cambia la cantidad del producto.
 DELIMITER //
@@ -155,8 +158,8 @@ DELIMITER ;
 DELIMITER //
 
 -- Usado en server/server.js:
---   líneas 77-101, POST /api/productos.
---   La llamada CALL sp_insertar_producto(?, ?, ?, ?) está en las líneas 89-91.
+--   líneas 100-124, POST /api/productos.
+--   La llamada CALL sp_insertar_producto(?, ?, ?, ?) está en las líneas 112-114.
 CREATE PROCEDURE sp_insertar_producto(
     IN p_nombre VARCHAR(100),
     IN p_precio DECIMAL(10, 2),
@@ -169,8 +172,8 @@ BEGIN
 END //
 
 -- Usado en server/server.js:
---   líneas 103-119, PATCH /api/productos/:id/cantidad.
---   La llamada CALL sp_actualizar_cantidad_producto(?, ?) está en la línea 111.
+--   líneas 126-142, PATCH /api/productos/:id/cantidad.
+--   La llamada CALL sp_actualizar_cantidad_producto(?, ?) está en la línea 134.
 CREATE PROCEDURE sp_actualizar_cantidad_producto(
     IN p_id INT,
     IN p_nueva_cantidad INT
@@ -182,8 +185,8 @@ BEGIN
 END //
 
 -- Usado en server/server.js:
---   líneas 121-136, DELETE /api/productos/:id.
---   La llamada CALL sp_eliminar_producto(?) está en la línea 128.
+--   líneas 144-159, DELETE /api/productos/:id.
+--   La llamada CALL sp_eliminar_producto(?) está en la línea 151.
 CREATE PROCEDURE sp_eliminar_producto(
     IN p_id INT
 )
@@ -202,9 +205,9 @@ DELIMITER ;
 -- 2.1 TABLAS DEL MÓDULO DE USUARIOS, SERVICIOS Y VISITAS
 -- ------------------------------------------------------------
 -- Usadas en server/server.js:
---   líneas 142-249, GET /api/servicios-resumen.
---   líneas 251-353, GET /api/servicios-ranking.
---   líneas 436-545, POST /api/usuarios-servicios.
+--   líneas 165-272, GET /api/servicios-resumen.
+--   líneas 274-376, GET /api/servicios-ranking.
+--   líneas 459-568, POST /api/usuarios-servicios.
 -- Esos endpoints consultan o escriben en usuarios, servicios y visitas.
 --
 -- 2.1.1 Tabla de usuarios
@@ -264,9 +267,9 @@ INSERT INTO servicios (nombre, descripcion) VALUES
 DELIMITER //
 
 -- Usado en server/server.js:
---   líneas 436-510, POST /api/usuarios-servicios.
---   La llamada CALL sp_agregar_usuario(?, ?, ?, ?, ?, ?) está en 473-483.
---   El id generado se recupera con LAST_INSERT_ID() en las líneas 492-500.
+--   líneas 459-533, POST /api/usuarios-servicios.
+--   La llamada CALL sp_agregar_usuario(?, ?, ?, ?, ?, ?) está en 496-506.
+--   El id generado se recupera con LAST_INSERT_ID() en las líneas 515-523.
 CREATE PROCEDURE sp_agregar_usuario(
     IN p_nombre VARCHAR(100),
     IN p_apellido VARCHAR(100),
@@ -283,8 +286,8 @@ BEGIN
 END //
 
 -- Usado en server/server.js:
---   líneas 511-542, dentro de POST /api/usuarios-servicios.
---   La llamada CALL sp_registrar_visita(?, ?, NOW(), ?, ?) está en 514-517
+--   líneas 534-565, dentro de POST /api/usuarios-servicios.
+--   La llamada CALL sp_registrar_visita(?, ?, NOW(), ?, ?) está en 537-540
 --   y se repite una vez por cada servicio seleccionado por la persona.
 CREATE PROCEDURE sp_registrar_visita(
     IN p_id_usuario INT,
@@ -457,7 +460,7 @@ INSERT INTO visitas (id_usuario, id_servicio, fecha_visita, anio, semana) VALUES
 -- 4.1 TABLA DE PEDIDOS
 -- ------------------------------------------------------------
 -- Uso indirecto desde server/server.js:
---   líneas 361-429, GET /api/clientes-resumen.
+--   líneas 384-452, GET /api/clientes-resumen.
 --   El endpoint no consulta pedidos directamente; recibe sus agregados por
 --   medio de metricas_de_clientes y de las vistas de clasificación.
 
@@ -475,8 +478,8 @@ CREATE TABLE pedidos (
 -- Resume compras, gasto acumulado, última compra y actividad
 -- reciente de cada usuario.
 -- Usada en server/server.js:
---   líneas 361-429, GET /api/clientes-resumen.
---   El JOIN con metricas_de_clientes está en la línea 391.
+--   líneas 384-452, GET /api/clientes-resumen.
+--   El JOIN con metricas_de_clientes está en la línea 414.
 CREATE VIEW metricas_de_clientes AS
 SELECT 
     u.id_usuario,
@@ -562,7 +565,7 @@ UPDATE productos SET cantidad = 8 WHERE id = 1;
 -- CALL sp_actualizar_cantidad_producto(1, 20);
 -- CALL sp_eliminar_producto(31);
 
--- Usuarios y visitas (usados actualmente por server/server.js, líneas 473-517)
+-- Usuarios y visitas (usados actualmente por server/server.js, líneas 496-540)
 -- CALL sp_agregar_usuario('Pepe', 'Pérez', 'pepe@correo.com', '8110000000');
 -- SELECT LAST_INSERT_ID() AS id_usuario;  -- Recupera el id recién creado
 -- CALL sp_registrar_visita(1, 1, '2026-09-20 10:00:00', 2026, 38);
@@ -672,8 +675,8 @@ SELECT * FROM cliente_normal;
 -- 7.3 VISTAS FILTRADAS POR TIPO DE CLIENTE
 -- ------------------------------------------------------------
 -- Usadas en server/server.js:
---   líneas 361-429, GET /api/clientes-resumen.
---   Las tres vistas se unen con UNION ALL en las líneas 384-390 para entregar
+--   líneas 384-452, GET /api/clientes-resumen.
+--   Las tres vistas se unen con UNION ALL en las líneas 407-413 para entregar
 --   la tabla, la distribución y los clientes destacados al frontend.
 
 CREATE VIEW cliente_alto_nivel AS

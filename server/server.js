@@ -69,6 +69,29 @@ app.get('/api/productos-alerta', (req, res) => {
   });
 });
 
+app.get('/api/alertas-stock', (req, res) => {
+  const sql = `
+    SELECT
+      a.id,
+      a.producto_id,
+      p.nombre AS producto,
+      a.mensaje,
+      a.fecha_alerta
+    FROM alertas_stock a
+    LEFT JOIN productos p ON p.id = a.producto_id
+    ORDER BY a.fecha_alerta DESC, a.id DESC
+  `;
+
+  db.query(sql, (err, result) => {
+    if (err) {
+      console.error('Error consultando el historial de alertas:', err);
+      return res.status(500).json({ error: 'Error al consultar el historial de alertas' });
+    }
+
+    res.json(result);
+  });
+});
+
 // ============================================================
 // PRODUCTOS - Insertar, actualizar cantidad y eliminar
 // Usa sp_insertar_producto, sp_actualizar_cantidad_producto y sp_eliminar_producto

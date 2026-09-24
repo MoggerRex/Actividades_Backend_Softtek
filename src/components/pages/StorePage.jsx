@@ -15,6 +15,16 @@ const formatPrice = (price) =>
     currency: 'MXN',
   }).format(price)
 
+const dateTimeFormatter = new Intl.DateTimeFormat('es-MX', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+})
+
+const formatDateTime = (value) => {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : dateTimeFormatter.format(date)
+}
+
 async function request(url, options) {
   const response = await fetch(url, options)
   const data = await response.json().catch(() => ({}))
@@ -29,6 +39,10 @@ async function request(url, options) {
 function StorePage() {
   const [productos, setProductos] = useState([])
   const [alertas, setAlertas] = useState([])
+  const [stockHistory, setStockHistory] = useState([])
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
@@ -42,7 +56,7 @@ function StorePage() {
   const [form, setForm] = useState(emptyProduct)
 
   useEffect(() => {
-    if (!modal && !productToDelete) return undefined
+    if (!modal && !productToDelete && !isHistoryOpen) return undefined
 
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -50,7 +64,7 @@ function StorePage() {
     return () => {
       document.body.style.overflow = previousOverflow
     }
-  }, [modal, productToDelete])
+  }, [modal, productToDelete, isHistoryOpen])
 
   const cargarDatos = useCallback(async () => {
     try {
@@ -99,6 +113,22 @@ function StorePage() {
       direction:
         currentSort.field === field && currentSort.direction === 'asc' ? 'desc' : 'asc',
     }))
+  }
+
+  const openStockHistory = async () => {
+    setIsHistoryOpen(true)
+    setHistoryLoading(true)
+    setHistoryError('')
+
+    try {
+      const history = await request(`${API_URL}/alertas-stock`)
+      setStockHistory(history)
+    } catch (requestError) {
+      setStockHistory([])
+      setHistoryError(requestError.message)
+    } finally {
+      setHistoryLoading(false)
+    }
   }
 
   const openAddModal = () => {
@@ -325,11 +355,18 @@ function StorePage() {
             </section>
 
             <section className="min-w-0 overflow-hidden rounded-[10px] bg-white dark:bg-[#101010] shadow-sm dark:shadow-[0_8px_24px_rgba(0,0,0,0.24)]">
-              <div className="border-b border-slate-200 dark:border-white/10 px-5 py-4">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-white/10">
                 <div className="flex items-center gap-2.5">
                   <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Alertas</h2>
                   <span className="rounded-full bg-blue-50 dark:bg-blue-500/15 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:text-blue-300">{alertas.length}</span>
                 </div>
+                <button
+                  className="h-8 rounded-[10px] border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-blue-400/20 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20 dark:focus:ring-blue-900"
+                  type="button"
+                  onClick={openStockHistory}
+                >
+                  Ver historial
+                </button>
               </div>
               <div className="max-h-80 overflow-auto">
                 <table className="w-full border-collapse text-left text-sm">
@@ -360,6 +397,69 @@ function StorePage() {
             </section>
             </div>
       </main>
+
+      {isHistoryOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 backdrop-blur-[2px]" role="presentation" onMouseDown={() => setIsHistoryOpen(false)}>
+          <div
+            className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-[10px] bg-white shadow-2xl shadow-black/30 dark:bg-[#101010]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="stock-history-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5 dark:border-white/10">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h2 id="stock-history-title" className="text-lg font-semibold text-slate-900 dark:text-slate-100">Historial de alertas de stock</h2>
+                  {!historyLoading && (
+                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">{stockHistory.length}</span>
+                  )}
+                </div>
+                <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+                  Registro de alertas generadas cuando la cantidad de un producto alcanza el nivel mínimo establecido.
+                </p>
+              </div>
+              <button className="grid size-8 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-slate-300" type="button" onClick={() => setIsHistoryOpen(false)} aria-label="Cerrar historial">
+                <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+              </button>
+            </div>
+
+            {historyError ? (
+              <p className="m-6 rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-400/25 dark:bg-red-500/10 dark:text-red-300">{historyError}</p>
+            ) : (
+              <div className="overflow-auto">
+                <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+                  <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-[#0b0b0b]">
+                    <tr className="border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:border-white/10 dark:text-slate-500">
+                      <th className="w-20 px-6 py-3">ID</th>
+                      <th className="px-6 py-3">Producto</th>
+                      <th className="px-6 py-3">Mensaje</th>
+                      <th className="whitespace-nowrap px-6 py-3">Fecha</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                    {historyLoading ? (
+                      <tr><td colSpan="4" className="px-6 py-14 text-center text-slate-400">Cargando historial...</td></tr>
+                    ) : stockHistory.length === 0 ? (
+                      <tr><td colSpan="4" className="px-6 py-14 text-center text-slate-400">Todavía no se han generado alertas de stock.</td></tr>
+                    ) : stockHistory.map((alert) => (
+                      <tr key={alert.id} className="align-top transition-colors hover:bg-blue-50/40 dark:hover:bg-blue-500/5">
+                        <td className="px-6 py-4 font-mono text-xs text-slate-400">#{alert.id}</td>
+                        <td className="px-6 py-4">
+                          <p className="font-semibold text-slate-700 dark:text-slate-200">{alert.producto || 'Producto eliminado'}</p>
+                          <p className="mt-0.5 text-xs text-slate-400">ID de producto: {alert.producto_id}</p>
+                        </td>
+                        <td className="max-w-xl px-6 py-4 leading-6 text-slate-600 dark:text-slate-300">{alert.mensaje}</td>
+                        <td className="whitespace-nowrap px-6 py-4 text-slate-500 dark:text-slate-400">{formatDateTime(alert.fecha_alerta)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {productToDelete && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 backdrop-blur-[2px]" role="presentation" onMouseDown={closeDeleteModal}>

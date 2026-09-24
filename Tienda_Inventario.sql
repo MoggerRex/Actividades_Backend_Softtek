@@ -230,7 +230,7 @@ CREATE TABLE servicios (
 );
 
 -- 2.1.3 Tabla de visitas
---     anio y semana se guardan explícitamente en cada INSERT para
+--     año y semana se guardan explícitamente en cada INSERT para
 --     poder agrupar/filtrar reportes por semana sin recalcular nada.
 --     El UNIQUE evita que un usuario registre el mismo servicio
 --     dos veces en la misma semana.

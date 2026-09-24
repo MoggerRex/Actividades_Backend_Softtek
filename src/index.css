@@ -1,6 +1,8 @@
 @import "@fontsource-variable/urbanist";
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: "Urbanist Variable", Urbanist, ui-sans-serif, system-ui, sans-serif;
 }
@@ -10,11 +12,9 @@
   --empty-chart-wine: #eee3e7;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --empty-chart: #252525;
-    --empty-chart-wine: #252525;
-  }
+.dark {
+  --empty-chart: #252525;
+  --empty-chart-wine: #252525;
 }
 
 @layer base {
@@ -31,7 +31,11 @@
 
 @layer base {
   :root {
-    color-scheme: light dark;
+    color-scheme: light;
+  }
+
+  :root.dark {
+    color-scheme: dark;
   }
 
   ::selection {

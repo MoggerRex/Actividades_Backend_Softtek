@@ -5,6 +5,22 @@ import DashboardPage from './components/pages/DashboardPage.jsx'
 import StorePage from './components/pages/StorePage.jsx'
 import CustomersPage from './components/pages/CustomersPage.jsx'
 
+const THEME_STORAGE_KEY = 'tienda-inventario-theme'
+
+const getInitialTheme = () => {
+  const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
+
+  if (savedTheme === 'dark' || savedTheme === 'light') {
+    return savedTheme
+  }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+const initialTheme = getInitialTheme()
+document.documentElement.classList.toggle('dark', initialTheme === 'dark')
+document.documentElement.style.colorScheme = initialTheme
+
 const getPageFromLocation = () => {
   const page = window.location.hash.slice(1)
   return navigation.some((item) => item.id === page) ? page : 'store'
@@ -13,8 +29,16 @@ const getPageFromLocation = () => {
 function App() {
   const [activePage, setActivePage] = useState(getPageFromLocation)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [themeMode, setThemeMode] = useState(initialTheme)
   const isDashboard = activePage === 'dashboard'
   const isCustomers = activePage === 'customers'
+  const isDarkMode = themeMode === 'dark'
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDarkMode)
+    document.documentElement.style.colorScheme = themeMode
+    window.localStorage.setItem(THEME_STORAGE_KEY, themeMode)
+  }, [isDarkMode, themeMode])
 
   useEffect(() => {
     const syncPageWithLocation = () => setActivePage(getPageFromLocation())
@@ -47,6 +71,8 @@ function App() {
         onSelectPage={selectPage}
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen((isOpen) => !isOpen)}
+        isDarkMode={isDarkMode}
+        onToggleTheme={() => setThemeMode((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))}
       />
 
       <div className={`min-h-screen transition-[padding] ${isSidebarOpen ? 'pl-[92px] md:pl-[260px]' : 'pl-[72px] md:pl-[84px]'}`}>

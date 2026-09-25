@@ -318,7 +318,6 @@ LEFT JOIN servicios s ON v.id_servicio = s.id_servicio
 GROUP BY u.id_usuario, u.nombre, u.apellido, u.correo, u.telefono;
 
 SELECT * FROM personas_servicios;
-DROP VIEW personas_servicios;
 
 -- porcentaje de usuarios en cada servicio --
 SELECT 

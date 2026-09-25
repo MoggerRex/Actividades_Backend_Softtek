@@ -212,33 +212,13 @@ app.get('/api/servicios-resumen', (req, res) => {
 
   const personasSql = `
     SELECT
-      u.id_usuario,
-      TRIM(CONCAT(u.nombre, ' ', COALESCE(u.apellido, ''))) AS persona,
-      u.correo,
-      u.telefono,
-      COALESCE(u.area, 'Sin área') AS area,
-      COALESCE(u.rol, 'Sin rol') AS rol,
-      COALESCE(
-        GROUP_CONCAT(
-          DISTINCT CASE s.id_servicio
-            WHEN 1 THEN 'Masajes'
-            WHEN 2 THEN 'Rehabilitación'
-            ELSE s.nombre
-          END
-          ORDER BY s.id_servicio SEPARATOR ', '
-        ),
-        'Ningún servicio'
-      ) AS servicios,
-      COUNT(DISTINCT v.id_servicio) AS servicios_utilizados
-    FROM usuarios u
-    LEFT JOIN visitas v
-      ON u.id_usuario = v.id_usuario
-      AND v.anio = ?
-      AND v.semana = ?
-    LEFT JOIN servicios s
-      ON s.id_servicio = v.id_servicio
-    GROUP BY u.id_usuario, u.nombre, u.apellido, u.correo, u.telefono, u.area, u.rol
-    ORDER BY u.id_usuario
+      id_usuario,
+      TRIM(CONCAT(nombre, ' ', COALESCE(apellido, ''))) AS persona,
+      correo,
+      telefono,
+      COALESCE(lista_servicios, 'Ningún servicio') AS servicios
+    FROM personas_servicios
+    ORDER BY id_usuario
   `;
 
   db.query(resumenSql, [anio, semana], (summaryError, summaryRows) => {
@@ -253,7 +233,7 @@ app.get('/api/servicios-resumen', (req, res) => {
         return res.status(500).json({ error: 'No se pudo consultar las visitas por servicio' });
       }
 
-      db.query(personasSql, [anio, semana], (peopleError, peopleRows) => {
+      db.query(personasSql, (peopleError, peopleRows) => {
         if (peopleError) {
           console.error('Error consultando personas y servicios:', peopleError);
           return res.status(500).json({ error: 'No se pudieron consultar las personas y sus servicios' });
